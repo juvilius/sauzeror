@@ -3,7 +3,7 @@
 ## Structure Alignments Using Z-scaled EigenRanks Of Residues
 
 ```
-  python sauzeror.py
+python sauzeror.py
 ```
 
 ## Dependencies
