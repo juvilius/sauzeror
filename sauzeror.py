@@ -84,6 +84,7 @@ elif hasattr(args,'input1'):
         input1 = Path(args.input1).rglob('*.pdb')
     elif os.path.isfile(args.input1):
         for line in open(args.input1,'r'):
+            line=line.rstrip()
             input1 = []
             if not line.startswith('#'):
                 if not os.path.isfile(line):
@@ -95,6 +96,7 @@ elif hasattr(args,'input1'):
         input2 = Path(args.input2).rglob('*.pdb')
     elif os.path.isfile(args.input2):
         for line in open(args.input2,'r'):
+            line=line.rstrip()
             input2 = []
             if not line.startswith('#'):
                 if not os.path.isfile(line):
