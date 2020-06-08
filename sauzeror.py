@@ -15,7 +15,7 @@
 #               ║  ┌──────────────────────────────────────────────────────┐                ║
 #               ╟──┤ an input can be                                      │                ║
 #               ║  │    (1) a file name,                                  │                ║
-#               ║  │    (2) a directory or                                │                ║
+#               ║  │    (2) a directory (filtering for .pdb, .ent, .atm), │                ║
 #               ║  │    (3) a file with a list of files; one per line.    │                ║
 #               ║  │        (e.g. find ~/path/to/pdb -name '*.pdb')       │                ║
 #               ║  │ these 3 options can be mixed.                        │                ║
@@ -58,6 +58,8 @@ helptext = []
 for i,line in enumerate(open(__file__, 'r')):
     if line.startswith('#'):
         helptext.append((line[1:].rstrip()))
+    else:
+        break
 
 ### ARGPARSE
 
@@ -88,7 +90,9 @@ if hasattr(args,'input'):
     sys.exit()
 elif hasattr(args,'input1'):
     if os.path.isdir(args.input1):
-        input1 = Path(args.input1).rglob('*.pdb')
+        input1 = list(Path(args.input1).rglob('*.pdb'))
+        input1.extend(Path(args.input1).rglob('*.ent'))
+        input1.extend(Path(args.input1).rglob('*.atm'))
     elif os.path.isfile(args.input1):
         input1 = []
         for line in open(args.input1,'r'):
@@ -100,7 +104,9 @@ elif hasattr(args,'input1'):
                 else:
                     input1.append(os.path.abspath(line.rstrip())) 
     if os.path.isdir(args.input2):
-        input2 = Path(args.input2).rglob('*.pdb')
+        input2 = list(Path(args.input2).rglob('*.pdb'))
+        input2.extend(Path(args.input2).rglob('*.ent'))
+        input2.extend(Path(args.input2).rglob('*.atm'))
     elif os.path.isfile(args.input2):
         input2 = []
         for line in open(args.input2,'r'):
