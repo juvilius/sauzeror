@@ -424,6 +424,7 @@ class structure:
         self.atoms = atoms
         self.coordinates = np.asarray([a['coords'] for a in atoms])
 
+### INITIATING STRUCTURE OBJECTS
 t4 = time()
 if args.multiprocessing:
     n_cores = mp.cpu_count()
@@ -471,20 +472,23 @@ def sauzer(q,t):
     output.append(chain_1)
     output.append(''.join([':' if (g==0 and d<5) else ' ' for d,g in zip(a.dists ,a.is_gap)]))
     output.append(chain_2)
+    output.append('')
     output = '\n'.join(output)
+    print(output)
     return output,q.id,t.id
 
 
 ### PAIRWISE ALIGNMENTS 
 # (for now merely printing to stdout; append '> resultfile.txt' at the end of your command)
 co = itertools.product(structures1, structures2)
-for q,t in co:
-    print(sauzer(q,t)[0])
+if args.multiprocessing:
+    n_cores = mp.cpu_count()
+    with mp.Pool(n_cores) as pool:
+        outputs = pool.starmap(sauzer, co)
+else:
+    outputs = [sauzer(q,t) for q,t in co]
 
 sys.exit()
-n_cores = mp.cpu_count()
-with mp.Pool(n_cores) as pool:
-    outputs = pool.starmap(sauzer, co)
 
 ### COMPRESSION OF RESULTS
 txz = tarfile.open(time.strftime('%Y%m%d_%H%M%S_sauzeror.txz'), 'w|xz')
