@@ -17,6 +17,7 @@
 #               ║  │    (1) a file name,                               │                   ║
 #               ║  │    (2) a directory or                             │                   ║
 #               ║  │    (3) a file with a list of files; one per line. │                   ║
+#               ║  │        (e.g. find ~/path/to/pdb -name '*.pdb')    │                   ║
 #               ╟──┤ these 3 options can be mixed.                     │                   ║
 #               ║  └───────────────────────────────────────────────────┘                   ║
 #               ║  ┌───────────────────────────────────────────────────────────────────┐   ║
@@ -51,7 +52,7 @@ for i,line in enumerate(open(__file__, 'r')):
         logo.append((line[1:].rstrip()))
 helptext = []
 for i,line in enumerate(open(__file__, 'r')):
-    if i<30:
+    if line.startswith('#'):
         helptext.append((line[1:].rstrip()))
 
 ### ARGPARSE
