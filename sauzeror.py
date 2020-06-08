@@ -9,21 +9,25 @@
 #╚══════════════╦══════╦════════════════════════════════════════════════════════════╦══════╦══════════════════╝
 #               ║      ║ Structure Alignments Using Z-scaled EigenRanks Of Residues ║      ║
 #               ║      ╚════════════════════════════════════════════════════════════╝      ║
-#               ║  ┌──────────────────────────────────────────────┐                        ║
-#               ╟──┤ python sauzeror.py [...] align input1 input2 │                        ║
-#               ║  └──────────────────────────────────────────────┘                        ║
-#               ║  ┌───────────────────────────────────────────────────┐                   ║
-#               ╟──┤ an input can be                                   │                   ║
-#               ║  │    (1) a file name,                               │                   ║
-#               ║  │    (2) a directory or                             │                   ║
-#               ║  │    (3) a file with a list of files; one per line. │                   ║
-#               ║  │        (e.g. find ~/path/to/pdb -name '*.pdb')    │                   ║
-#               ╟──┤ these 3 options can be mixed.                     │                   ║
-#               ║  └───────────────────────────────────────────────────┘                   ║
+#               ║  ┌────────────────────────────────────────────────────┐                  ║
+#               ╟──┤ python sauzeror.py [1..] align input1 input2 [2..] │                  ║
+#               ║  └────────────────────────────────────────────────────┘                  ║
+#               ║  ┌──────────────────────────────────────────────────────┐                ║
+#               ╟──┤ an input can be                                      │                ║
+#               ║  │    (1) a file name,                                  │                ║
+#               ║  │    (2) a directory or                                │                ║
+#               ║  │    (3) a file with a list of files; one per line.    │                ║
+#               ║  │        (e.g. find ~/path/to/pdb -name '*.pdb')       │                ║
+#               ║  │ these 3 options can be mixed.                        │                ║
+#               ║  │                                                      │                ║
+#               ║  │ alignment parameters may be given at the end ([2..]) │                ║
+#               ║  │   --gap-cost     gap cost parameter (default 0.7)    │                ║
+#               ╟──┤   --limit        limit parameter (default 0.8)       │                ║
+#               ║  └──────────────────────────────────────────────────────┘                ║
 #               ║  ┌───────────────────────────────────────────────────────────────────┐   ║
-#               ╟──┤ further options may be given instead of [...]                     │   ║
+#               ╟──┤ further options may be given instead of [1..]                     │   ║
 #               ║  │   -h   --help              show this help message                 │   ║
-#               ║  │   -v   --verbose           for more verbosity                     │   ║
+#               ║  │   -v   --verbose           for more verbosity (starting with #)   │   ║
 #               ║  │   -mp  --multiprocessing   use multiprocessing                    │   ║
 #               ║  │   -nc  --no-cache          don't cache numbas machine code        │   ║
 #               ╟──┤   -nb  --no-banner         don't use the the banner in the output │   ║
@@ -63,6 +67,8 @@ subparser = parser.add_subparsers()
 parser_a = subparser.add_parser('align', help='align sets of protein structures pairwise')
 parser_a.add_argument('input1', type=str, help='first input')
 parser_a.add_argument('input2', type=str, help='second input')
+parser_a.add_argument('--gap-cost', type=float, default=0.7, help='gap cost')
+parser_a.add_argument('--limit', type=float, default=0.8, help='limit parameter for Smith-Waterman-algorithm')
 
 # future feature
 parser_c = subparser.add_parser('classify', help='classify a set of proteins with SCOPe')
@@ -71,7 +77,7 @@ parser_c.add_argument('input', type=str, help='input structure')
 parser.add_argument('-v', '--verbose', default=False, action='store_true', help='verbose output')
 parser.add_argument('-nb', '--no-banner', default=False, action='store_true', help='no logo in output')
 parser.add_argument('-mp', '--multiprocessing', default=False, action='store_true')
-parser.add_argument('-nc', '--no-cache', action='store_false', default=True, help='DON\'T write numba machine code to cache for faster starting time')
+parser.add_argument('-nc', '--no-cache', action='store_false', default=True, help='DON\'T write numba machine code to cache')
 
 parser.add_argument('-h', '--help', action='store_true', help='that\'s better')
 args = parser.parse_args()
@@ -84,9 +90,9 @@ elif hasattr(args,'input1'):
     if os.path.isdir(args.input1):
         input1 = Path(args.input1).rglob('*.pdb')
     elif os.path.isfile(args.input1):
+        input1 = []
         for line in open(args.input1,'r'):
             line=line.rstrip()
-            input1 = []
             if not line.startswith('#'):
                 if not os.path.isfile(line):
                     input1 = [os.path.abspath(args.input1)]
@@ -96,9 +102,9 @@ elif hasattr(args,'input1'):
     if os.path.isdir(args.input2):
         input2 = Path(args.input2).rglob('*.pdb')
     elif os.path.isfile(args.input2):
+        input2 = []
         for line in open(args.input2,'r'):
             line=line.rstrip()
-            input2 = []
             if not line.startswith('#'):
                 if not os.path.isfile(line):
                     input2 = [os.path.abspath(args.input2)]
@@ -326,7 +332,7 @@ def nlocalalign(ab,a,b,gap,factor,limit):
 class Alignment:
     '''pairwise alignment of two protein structures.
     query and target as Protein objects.'''
-    def __init__(self, query, target, gap=0.8, factor=1, limit=0.7):
+    def __init__(self, query, target, gap, limit, factor=1):
         self.query = query
         self.target = target
         self.limit = float(limit)
@@ -440,7 +446,12 @@ else:
     t5 = time()
     structures2 = [structure(s2) for s2 in input2]
 if args.verbose:
-    print('EigenRank calculation time: {0:.3f}s + {1:.3f}s = {2:.3f}s'.format(t5-t4, time()-t5, time()-t4))
+    print('# EigenRank calculation time: {0:.3f}s + {1:.3f}s = {2:.3f}s'.format(t5-t4, time()-t5, time()-t4))
+    nstr1=len(structures1)
+    nstr2=len(structures2)
+    total_number_of_alignments = nstr1*nstr2
+    print('# input1: {0} structures, input2: {1} structures\n'.format(nstr1,nstr2))
+    print('# starting pairwise alignment (gap cost = {0}, limit = {1})\n'.format(args.gap_cost, args.limit))
 # with open('structure_COPS.pkl', 'wb') as p:
 #     pickle.dump(qstructures, p)
 #     pickle.dump(tstructures, p)
@@ -450,9 +461,9 @@ if args.verbose:
     # tstructures=pickle.load(p)
 
 
-def sauzer(q,t):
+def sauzer(q,t,gap=args.gap_cost,limit=args.limit):
     ''' generating output for alignment '''
-    a = Alignment(q,t)
+    a = Alignment(q,t,gap,limit)
     chain_1 = ''.join([toggle_code(q.atoms[i]['res'],'3to1') if (g!=1) else '-' for i,g in zip(a.i_list,a.is_gap)])[::-1]
     chain_2 = ''.join([toggle_code(t.atoms[j]['res'],'3to1') if (g!=2) else '-' for j,g in zip(a.j_list,a.is_gap)])[::-1]
     if args.no_banner:
@@ -483,6 +494,7 @@ def sauzer(q,t):
 
 ### PAIRWISE ALIGNMENTS 
 # (for now merely printing to stdout; append '> resultfile.txt' at the end of your command)
+t3 = time()
 co = itertools.product(structures1, structures2)
 if args.multiprocessing:
     n_cores = mp.cpu_count()
@@ -490,7 +502,9 @@ if args.multiprocessing:
         outputs = pool.starmap(sauzer, co)
 else:
     outputs = [sauzer(q,t) for q,t in co]
-
+if args.verbose:
+    t4=time()-t3
+    print('# alignment time: {0:.3f}s, {1:.3f}ms/aligment'.format(t4, t4/total_number_of_alignments*1000))
 sys.exit()
 
 ### COMPRESSION OF RESULTS
