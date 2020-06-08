@@ -68,7 +68,7 @@ parser_c = subparser.add_parser('classify', help='classify a set of proteins wit
 parser_c.add_argument('input', type=str, help='input structure')
 
 parser.add_argument('-v', '--verbose', default=False, action='store_true', help='verbose output')
-parser.add_argument('-nb', '--no-logo', default=False, action='store_true', help='no logo in output')
+parser.add_argument('-nb', '--no-banner', default=False, action='store_true', help='no logo in output')
 parser.add_argument('-mp', '--multiprocessing', default=False, action='store_true')
 parser.add_argument('-nc', '--no-cache', action='store_false', default=True, help='DON\'T write numba machine code to cache for faster starting time')
 
@@ -169,7 +169,12 @@ Ser,S,Serine
 Thr,T,Threonine
 Trp,W,Tryptophan
 Tyr,Y,Tyrosine
-Val,V,Valine'''
+Val,V,Valine
+Asx,B,Asparagine or Aspartic acid
+Xle,J,Leucine or Isoleucine
+Glx,Z,Glutamic acid or Glutamine
+Xaa,X,Unknown
+Unk,X,Unknown'''
 reslet = dict()
 for l in lettercode.split('\n'):
     l = l.split(',')
@@ -401,8 +406,8 @@ class structure:
         # STUPID PDB
         for line in open(file, 'r'):
             if (line.startswith('ATOM') and
-                    res_id < int(line[22:26]) and
-                    atom_id < int(line[5:11]) and
+                    # res_id < int(line[22:26]) and
+                    # atom_id < int(line[5:11]) and
                     line[13:15] == 'CA' and
                     line[16] in ['A',' ']):
                 atom_id = int(line[5:11])
@@ -446,7 +451,7 @@ def sauzer(q,t):
     a = Alignment(q,t)
     chain_1 = ''.join([toggle_code(q.atoms[i]['res'],'3to1') if (g!=1) else '-' for i,g in zip(a.i_list,a.is_gap)])[::-1]
     chain_2 = ''.join([toggle_code(t.atoms[j]['res'],'3to1') if (g!=2) else '-' for j,g in zip(a.j_list,a.is_gap)])[::-1]
-    if args.no_logo:
+    if args.no_banner:
         output = []
     else:
         output = ['', *logo, '']
