@@ -51,9 +51,8 @@ np.set_printoptions(threshold=np.inf, linewidth=np.inf)
 # term_width = os.get_terminal_size().columns
 logo = []
 for i,line in enumerate(open(__file__, 'r')):
-    if i <= 8: # choosing the banner
-    # if i < 5:
-        logo.append((line[1:].rstrip()))
+    if 1 <= i < 8:
+        logo.append((line[2:-2]))
 helptext = []
 for i,line in enumerate(open(__file__, 'r')):
     if line.startswith('#'):
@@ -240,12 +239,9 @@ def eigenrank(atom_coordinates, numba=1):
         if not np.array_equal(np.greater(lrcenter[i,4], 0), np.greater(princo[i], 0)):
             princo = -princo
 
-        def scale2(y, c=True, sc=True):
-            x = y.copy()
-            if c:
-                x -= x.mean(axis=0)
-            if sc and c:
-                x /= np.sqrt((x**2).sum()/(x.shape[0] - 1))
+        def scale2(x):
+            x -= x.mean(axis=0)
+            x /= np.sqrt((x**2).sum()/(x.shape[0] - 1))
             return x
         
         return scale2(princo)
