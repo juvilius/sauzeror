@@ -21,8 +21,8 @@
 #               ║  │ these 3 options can be mixed.                        │                ║
 #               ║  │                                                      │                ║
 #               ║  │ alignment parameters may be given at the end ([2..]) │                ║
-#               ║  │   --gap-cost     gap cost parameter (default 0.7)    │                ║
-#               ╟──┤   --limit        limit parameter (default 0.8)       │                ║
+#               ║  │   --gap-cost     gap cost parameter (default 0.5)    │                ║
+#               ╟──┤   --limit        limit parameter (default 1.4)       │                ║
 #               ║  └──────────────────────────────────────────────────────┘                ║
 #               ║  ┌───────────────────────────────────────────────────────────────────┐   ║
 #               ╟──┤ further options may be given instead of [1..]                     │   ║
@@ -68,8 +68,8 @@ subparser = parser.add_subparsers()
 parser_a = subparser.add_parser('align', help='align sets of protein structures pairwise')
 parser_a.add_argument('input1', type=str, help='first input')
 parser_a.add_argument('input2', type=str, help='second input')
-parser_a.add_argument('--gap-cost', type=float, default=0.7, help='gap cost')
-parser_a.add_argument('--limit', type=float, default=0.8, help='limit parameter for Smith-Waterman-algorithm')
+parser_a.add_argument('--gap-cost', type=float, default=0.5, help='gap cost')
+parser_a.add_argument('--limit', type=float, default=1.4, help='limit parameter for Smith-Waterman-algorithm')
 
 # future feature
 parser_c = subparser.add_parser('classify', help='classify a set of proteins with SCOPe')
@@ -308,7 +308,6 @@ def eigenrank(atom_coordinates, numba=1):
             error = np.sum(np.divide(np.abs(eg2-M),M))/(n+1)
             h+=1
         ground = eg2[n]/n
-        np.delete(eg2,-1)+ground
         leaderranks [:,a-5] = np.delete(eg2,-1)+ground
     return pca_correcting(leaderranks)
 
@@ -439,6 +438,7 @@ class structure:
     def __init__(self, file):
         self.file = file
         self.id = os.path.basename(file).split('.')[0][:]
+        self.sccs = ''
         self.parse_coords(file)
         self.l = self.coordinates.shape[0]
         if self.l < 10:
@@ -499,7 +499,6 @@ if args.verbose:
     # qstructures=pickle.load(p)
     # tstructures=pickle.load(p)
 
-
 def sauzer(q,t,gap=args.gap_cost,limit=args.limit):
     ''' generating output for alignment '''
     a = Alignment(q,t,gap,limit)
@@ -509,8 +508,8 @@ def sauzer(q,t,gap=args.gap_cost,limit=args.limit):
         output = []
     else:
         output = ['', *logo, '']
-    output.append(' '.join(['chain_1:','{:4d}'.format(q.l), str(q.file)]))
-    output.append(' '.join(['chain_2:','{:4d}'.format(t.l), str(t.file)]))
+    output.append(' '.join(['chain_1:','{:4d}'.format(q.l), str(q.file), q.sccs]))
+    output.append(' '.join(['chain_2:','{:4d}'.format(t.l), str(t.file), t.sccs]))
     output.append('')
     output.append(' '.join(['alignment_length:', '{:d}'.format(a.traceback_len),
         'gaps:', '{0:d} ({1:.2%})'.format(a.nrgaps,a.nrgaps/a.traceback_len),
