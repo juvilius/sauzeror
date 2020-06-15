@@ -34,6 +34,7 @@
 #               ║  └───────────────────────────────────────────────────────────────────┘   ║
 #               ╚══════════════════════════════════════════════════════════════════════════╝
 from time import time
+from time import strftime
 import numpy as np
 from numba import jit, float32, int32, types
 from scipy import spatial
@@ -70,6 +71,7 @@ parser_a.add_argument('input1', type=str, help='first input')
 parser_a.add_argument('input2', type=str, help='second input')
 parser_a.add_argument('--gap-cost', type=float, default=0.5, help='gap cost')
 parser_a.add_argument('--limit', type=float, default=1.4, help='limit parameter for Smith-Waterman-algorithm')
+parser_a.add_argument('-o', '--output', default=False, help='output to file instead of stdout')
 
 # future feature
 parser_c = subparser.add_parser('classify', help='classify a set of proteins with SCOPe')
@@ -101,7 +103,7 @@ elif hasattr(args,'input1'):
                     input1 = [os.path.abspath(args.input1)]
                     break
                 else:
-                    input1.append(os.path.abspath(line.rstrip())) 
+                    input1.append(os.path.abspath(line.rstrip()))
     if os.path.isdir(args.input2):
         input2 = list(Path(args.input2).rglob('*.pdb'))
         input2.extend(Path(args.input2).rglob('*.ent'))
@@ -115,12 +117,11 @@ elif hasattr(args,'input1'):
                     input2 = [os.path.abspath(args.input2)]
                     break
                 else:
-                    input2.append(os.path.abspath(line.rstrip())) 
+                    input2.append(os.path.abspath(line.rstrip()))
 else:
     if not args.help:
         print('\n'.join(helptext))
     sys.exit()
-
 ### GENERAL FUNCTIONS
 
 def dm_euclidian(a,b):
@@ -280,7 +281,7 @@ def eigenrank(atom_coordinates, numba=1):
             x -= x.mean(axis=0)
             x /= np.sqrt((x**2).sum()/(x.shape[0] - 1))
             return x
-        
+
         return scale2(princo)
 
     dm = spatial.distance_matrix(atom_coordinates, atom_coordinates, p=2)
@@ -472,6 +473,9 @@ class structure:
         self.atoms = atoms
         self.coordinates = np.asarray([a['coords'] for a in atoms])
 
+### OUTPUT FILE
+if args.output != False:
+    output_file = open(args.output, 'w')
 ### INITIATING STRUCTURE OBJECTS
 t4 = time()
 if args.multiprocessing:
@@ -485,12 +489,18 @@ else:
     t5 = time()
     structures2 = [structure(s2) for s2 in input2]
 if args.verbose:
-    print('# EigenRank calculation time: {0:.3f}s + {1:.3f}s = {2:.3f}s'.format(t5-t4, time()-t5, time()-t4))
     nstr1=len(structures1)
     nstr2=len(structures2)
     total_number_of_alignments = nstr1*nstr2
-    print('# input1: {0} structures, input2: {1} structures\n'.format(nstr1,nstr2))
-    print('# starting pairwise alignment (gap cost = {0}, limit = {1})\n'.format(args.gap_cost, args.limit))
+    if args.output == False:
+        print('# EigenRank calculation time: {0:.3f}s + {1:.3f}s = {2:.3f}s'.format(t5-t4, time()-t5, time()-t4))
+        print('# input1: {0} structures, input2: {1} structures'.format(nstr1,nstr2))
+        print('# starting pairwise alignment (gap cost = {0}, limit = {1})\n'.format(args.gap_cost, args.limit))
+    else:
+        output_file.write('# EigenRank calculation time: {0:.3f}s + {1:.3f}s = {2:.3f}s\n'.format(t5-t4, time()-t5, time()-t4))
+        output_file.write('# input1: {0} structures, input2: {1} structures\n'.format(nstr1,nstr2))
+        output_file.write('# starting pairwise alignment (gap cost = {0}, limit = {1})\n'.format(args.gap_cost, args.limit))
+        output_file.flush()
 # with open('structure_COPS.pkl', 'wb') as p:
 #     pickle.dump(qstructures, p)
 #     pickle.dump(tstructures, p)
@@ -513,7 +523,7 @@ def sauzer(q,t,gap=args.gap_cost,limit=args.limit):
     output.append('')
     output.append(' '.join(['alignment_length:', '{:d}'.format(a.traceback_len),
         'gaps:', '{0:d} ({1:.2%})'.format(a.nrgaps,a.nrgaps/a.traceback_len),
-        'RMSD:', '{:.3f}'.format(a.rmsd),
+        # 'RMSD:', '{:.3f}'.format(a.rmsd),
         '\nGDT-TS:', '{:.3f}'.format(a.gdt_ts),
         'GDT-sim:', '{:.3f}'.format(a.gdt_sim),
         'Zerscore:', '{:.3f}'.format(a.score),
@@ -526,23 +536,77 @@ def sauzer(q,t,gap=args.gap_cost,limit=args.limit):
     output.append(chain_2)
     output.append('')
     output = '\n'.join(output)
-    print(output)
-    return output,q.id,t.id
+    if args.output == False:
+        print(output)
+    else:
+        output_file.write(output)
+    return output
 
 
-### PAIRWISE ALIGNMENTS 
+def sauzer_mp(queue,q,t,gap=args.gap_cost,limit=args.limit):
+    ''' generating output for alignment '''
+    a = Alignment(q,t,gap,limit)
+    chain_1 = ''.join([toggle_code(q.atoms[i]['res'],'3to1') if (g!=1) else '-' for i,g in zip(a.i_list,a.is_gap)])[::-1]
+    chain_2 = ''.join([toggle_code(t.atoms[j]['res'],'3to1') if (g!=2) else '-' for j,g in zip(a.j_list,a.is_gap)])[::-1]
+    if args.no_banner:
+        output = []
+    else:
+        output = ['', *logo, '']
+    output.append(' '.join(['chain_1:','{:4d}'.format(q.l), str(q.file), q.sccs]))
+    output.append(' '.join(['chain_2:','{:4d}'.format(t.l), str(t.file), t.sccs]))
+    output.append('')
+    output.append(' '.join(['alignment_length:', '{:d}'.format(a.traceback_len),
+        'gaps:', '{0:d} ({1:.2%})'.format(a.nrgaps,a.nrgaps/a.traceback_len),
+        # 'RMSD:', '{:.3f}'.format(a.rmsd),
+        '\nGDT-TS:', '{:.3f}'.format(a.gdt_ts),
+        'GDT-sim:', '{:.3f}'.format(a.gdt_sim),
+        'Zerscore:', '{:.3f}'.format(a.score),
+        '\nTMscore (normalised by length of chain_1):', '{:.5f}'.format(a.tmq),
+        '\nTMscore (normalised by length of chain_2):', '{:.5f}'.format(a.tmt),
+        '\nidentity:', '{:.3f}'.format(np.count_nonzero([bool(a==b) for a,b in zip(chain_1,chain_2)])/a.traceback_len),'similarity:','{:.3f}'.format(np.count_nonzero([bool(blosum(a,b)>0) for a,b in zip(chain_1,chain_2)])/a.traceback_len)]))
+    output.append('')
+    output.append(chain_1)
+    output.append(''.join([':' if (g==0 and d<5) else ' ' for d,g in zip(a.dists ,a.is_gap)]))
+    output.append(chain_2)
+    output.append('')
+    output = '\n'.join(output)
+    if args.output == False:
+        print(output)
+    else:
+        queue.put(output)
+    return output
+
+def writing2output(q):
+    while 1:
+        m = q.get()
+        if m == 'kill':
+            break
+        output_file.write('\n'+m)
+        output_file.flush()
+
+### PAIRWISE ALIGNMENTS
 # (for now merely printing to stdout; append '> resultfile.txt' at the end of your command)
 t3 = time()
-co = itertools.product(structures1, structures2)
 if args.multiprocessing:
     n_cores = mp.cpu_count()
+    manager = mp.Manager()
+    queue = manager.Queue()
+    co = itertools.product([queue], structures1, structures2)
     with mp.Pool(n_cores) as pool:
-        outputs = pool.starmap(sauzer, co)
+        filewriter = pool.apply_async(writing2output, (queue,))
+        outputs = pool.starmap(sauzer_mp, co)
+        queue.put('kill')
 else:
+    co = itertools.product(structures1, structures2)
     outputs = [sauzer(q,t) for q,t in co]
 if args.verbose:
     t4=time()-t3
-    print('# alignment time: {0:.3f}s, {1:.3f}ms/aligment'.format(t4, t4/total_number_of_alignments*1000))
+    if args.output == False:
+        print('# alignment time: {0:.3f}s, {1:.3f}ms/aligment'.format(t4, t4/total_number_of_alignments*1000))
+    else:
+        output_file.write('# alignment time: {0:.3f}s, {1:.3f}ms/aligment'.format(t4, t4/total_number_of_alignments*1000))
+if args.output != False:
+    output_file.close()
 sys.exit()
 
 ### COMPRESSION OF RESULTS
