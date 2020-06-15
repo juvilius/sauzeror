@@ -122,6 +122,7 @@ else:
     if not args.help:
         print('\n'.join(helptext))
     sys.exit()
+
 ### GENERAL FUNCTIONS
 
 def dm_euclidian(a,b):
@@ -318,8 +319,8 @@ def eigenrank(atom_coordinates, numba=1):
 ### numba part:
 # @jit(types.Tuple((int32[:],int32[:],int32[:],float32))(float32[:,:],float32[:],float32[:],float32,float32,float32), cache=True)
 @jit(nopython=True, cache=args.no_cache)
-def nlocalalign(ab,a,b,gap,factor,limit):
-    m,n = len(a),len(b)
+def nlocalalign(ab,gap,factor,limit):
+    m,n = ab.shape
     f = np.zeros((m+1,n+1))
     t = np.zeros((m+1,n+1))
     for i in range(1,m+1):
@@ -382,8 +383,8 @@ class Alignment:
     def align_and_rotate(self): # get the local alignment, calculate optimal rotation matrix for structures to fit into each other
         ab = dm_euclidian(self.query.er, self.target.er) # normal distribution (dmnd) or difference (dm_euclidian)
 
-        # actual alignment, numba speedup available:
-        self.i_list, self.j_list, self.is_gap, self.score = nlocalalign(ab,self.query.er,self.target.er,self.gap,self.factor,self.limit)
+        # actual alignment, using the fast SW from above
+        self.i_list, self.j_list, self.is_gap, self.score = nlocalalign(ab,self.gap,self.factor,self.limit)
 
         self.traceback_len = len(self.is_gap)
 
