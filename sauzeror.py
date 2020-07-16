@@ -70,9 +70,8 @@ helptext = []
 for i,line in enumerate(open(__file__, 'r')):
     if (i>0 and line.startswith('#')):
         helptext.append((line[1:].rstrip()))
-    else:
+    elif not line.startswith('#'):
         break
-
 ### ARGPARSE
 
 parser = argparse.ArgumentParser('SAUZEROR', add_help=False)
