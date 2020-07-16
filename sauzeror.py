@@ -1,3 +1,4 @@
+#!/usr/bin/python
 #╔════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 #║  .oooooo..o       .o.       ooooo     ooo  oooooooooooo oooooooooooo ooooooooo.     .oooooo.   ooooooooo.  ║
 #║ d8P'    `Y8      .888.      `888'     `8' d'""""""d888' `888'     `8 `888   `Y88.  d8P'  `Y8b  `888   `Y88.║
@@ -37,6 +38,7 @@ from time import time
 from time import strftime
 import numpy as np
 from numba import jit, float32, int32, types
+# numba is crucial for alignment... takes far too long otherwise
 from scipy import spatial
 from scipy import stats
 from scipy.special import ndtr
@@ -47,16 +49,23 @@ import itertools
 import argparse
 import multiprocessing as mp
 import matplotlib.pyplot as plt
+# atomium as an exception, since all other packages should be installed
+try:
+    import atomium
+    has_atomium = True
+except ImportError:
+    has_atomium = False
+
 np.set_printoptions(threshold=np.inf, linewidth=np.inf)
 
 # term_width = os.get_terminal_size().columns
 logo = []
 for i,line in enumerate(open(__file__, 'r')):
-    if 1 <= i < 8:
+    if 2 <= i < 8:
         logo.append((line[2:-2]))
 helptext = []
 for i,line in enumerate(open(__file__, 'r')):
-    if line.startswith('#'):
+    if (i>0 and line.startswith('#')):
         helptext.append((line[1:].rstrip()))
     else:
         break
@@ -78,14 +87,22 @@ parser_c = subparser.add_parser('classify', help='classify a set of proteins wit
 parser_c.add_argument('input', type=str, help='input structure')
 
 parser.add_argument('-v', '--verbose', default=False, action='store_true', help='verbose output')
+parser.add_argument('-a', '--atomium', default=False, action='store_true', help='atomium parser')
 parser.add_argument('-nb', '--no-banner', default=False, action='store_true', help='no logo in output')
 parser.add_argument('-mp', '--multiprocessing', default=False, action='store_true')
 parser.add_argument('-nc', '--no-cache', action='store_false', default=True, help='DON\'T write numba machine code to cache')
 
 parser.add_argument('-h', '--help', action='store_true', help='that\'s better')
 args = parser.parse_args()
+
 if args.help:
     print('\n'.join(helptext))
+
+if (has_atomium and args.atomium):
+    use_atomium = True
+else:
+    use_atomium = False
+
 if hasattr(args,'input'):
     print('classification of ', args.input)
     sys.exit()
@@ -439,14 +456,42 @@ class Alignment:
 class structure:
     def __init__(self, file):
         self.file = file
-        self.id = os.path.basename(file).split('.')[0][:]
         self.sccs = ''
-        self.parse_coords(file)
-        self.l = self.coordinates.shape[0]
-        if self.l < 10:
-            print(self.file, ' too short for sensible EigenRank: ', self.l)
+        if use_atomium:
+            self.atomium_parse(file)
         else:
-            self.er = eigenrank(self.coordinates)
+            self.parse_coords(file)
+
+    def atomium_parse(self,file):
+        try:
+            struc = atomium.open(str(file))
+        except FileNotFoundError:
+            struc = atomium.fetch(str(file))
+        if struc.code == None:
+            struc.id = os.path.basename(file).split('.')[0]
+        else:
+            struc.id = struc.code
+
+        self.coord_dict = {}
+        self.atoms = []
+        for chain in struc.model.chains():
+            coords = []
+            for res in chain:
+                for atom in res.atoms():
+                    if (atom.name == 'CA' and atom.het.code != 'X'):
+                        coords.append(atom.location)
+                        self.atoms.append({'res_id':res.id, 'res':toggle_code(res.code, '3to1'), 'atom_id':atom.id, 'coords':atom.location, 'chain':chain.id})
+            self.coord_dict[chain.internal_id] = np.asarray(coords)
+
+        self.er_dict = {}
+        for chain_id, coords in self.coord_dict.items():
+            self.er_dict[chain_id] = eigenrank(coords)
+
+        # picking first chain
+        first_chain = sorted(self.coord_dict.keys())[0]
+        self.coordinates = self.coord_dict[first_chain]
+        self.l = self.coordinates.shape[0]
+        self.er = self.er_dict[first_chain]
 
     def parse_coords(self,file):
         atom_id = -20
@@ -469,10 +514,14 @@ class structure:
                 self.sccs = line[30:].rstrip()
             elif line.startswith('REMARK  99 ASTRAL SCOPe-sid:'):
                 self.sid = line[29:].rstrip()
-            elif line.startswith('ENDMDL'):
+            # stop parsing after first chain 
+            # use --atomium and read structure.atoms for all chains
+            elif (line.startswith('ENDMDL') or line.startswith('TER')):
                 break
         self.atoms = atoms
         self.coordinates = np.asarray([a['coords'] for a in atoms])
+        self.l = self.coordinates.shape[0]
+        self.er = eigenrank(self.coordinates)
 
 ### OUTPUT FILE
 if args.output != False:
