@@ -14,6 +14,10 @@ Align several domains, listed in *domains.txt*, with every structure in the *SCO
 python sauzeror.py -v -mp align domains.txt ../SCOPe/
 ```
 
+## Options
+
+Run sauzeror.py without arguments to view help.
+
 ## Dependencies
 
 + Python

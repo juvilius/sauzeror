@@ -10,9 +10,9 @@
 #╚══════════════╦══════╦════════════════════════════════════════════════════════════╦══════╦══════════════════╝
 #               ║      ║ Structure Alignments Using Z-scaled EigenRanks Of Residues ║      ║
 #               ║      ╚════════════════════════════════════════════════════════════╝      ║
-#               ║  ┌────────────────────────────────────────────────────┐                  ║
-#               ╟──┤ python sauzeror.py [1..] align input1 input2 [2..] │                  ║
-#               ║  └────────────────────────────────────────────────────┘                  ║
+#               ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+#               ╟──┤ python sauzeror.py [1..] align input1 input2 [2..] [-o result.txt] │  ║
+#               ║  └────────────────────────────────────────────────────────────────────┘  ║
 #               ║  ┌──────────────────────────────────────────────────────┐                ║
 #               ╟──┤ an input can be                                      │                ║
 #               ║  │    (1) a file name,                                  │                ║
@@ -22,14 +22,17 @@
 #               ║  │ these 3 options can be mixed.                        │                ║
 #               ║  │                                                      │                ║
 #               ║  │ alignment parameters may be given at the end ([2..]) │                ║
-#               ║  │   --gap-cost     gap cost parameter (default 0.5)    │                ║
-#               ╟──┤   --limit        limit parameter (default 1.4)       │                ║
+#               ║  │   --gap-cost     gap cost parameter (default 0.8)    │                ║
+#               ║  │   --limit        limit parameter (default 0.7)       │                ║
+#               ║  │                                                      │                ║
+#               ╟──┤   -o  --output     output file                       │                ║
 #               ║  └──────────────────────────────────────────────────────┘                ║
 #               ║  ┌───────────────────────────────────────────────────────────────────┐   ║
 #               ╟──┤ further options may be given instead of [1..]                     │   ║
 #               ║  │   -h   --help              show this help message                 │   ║
 #               ║  │   -v   --verbose           for more verbosity (starting with #)   │   ║
 #               ║  │   -mp  --multiprocessing   use multiprocessing                    │   ║
+#               ║  │   -a   --atomium           use atomium parser                     │   ║
 #               ║  │   -nc  --no-cache          don't cache numbas machine code        │   ║
 #               ╟──┤   -nb  --no-banner         don't use the the banner in the output │   ║
 #               ║  └───────────────────────────────────────────────────────────────────┘   ║
@@ -78,8 +81,8 @@ subparser = parser.add_subparsers()
 parser_a = subparser.add_parser('align', help='align sets of protein structures pairwise')
 parser_a.add_argument('input1', type=str, help='first input')
 parser_a.add_argument('input2', type=str, help='second input')
-parser_a.add_argument('--gap-cost', type=float, default=0.5, help='gap cost')
-parser_a.add_argument('--limit', type=float, default=1.4, help='limit parameter for Smith-Waterman-algorithm')
+parser_a.add_argument('--gap-cost', type=float, default=0.8, help='gap cost')
+parser_a.add_argument('--limit', type=float, default=0.7, help='limit parameter for Smith-Waterman-algorithm')
 parser_a.add_argument('-o', '--output', default=False, help='output to file instead of stdout')
 
 # future feature
@@ -100,6 +103,9 @@ if args.help:
 
 if (has_atomium and args.atomium):
     use_atomium = True
+elif (not has_atomium and args.atomium):
+    print('to use this feature, please install atomium: \'pip install atomium\'')
+    use_atomium = False
 else:
     use_atomium = False
 
