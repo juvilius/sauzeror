@@ -20,8 +20,9 @@ Run sauzeror.py without arguments to view help.
 
 ## Dependencies
 
-+ Python
-+ numpy
-+ scipy
-+ numba
-+ matplotlib (for graphical output)
++ [Python](https://docs.python.org/3/)
++ [numpy](https://numpy.org/doc/stable/)
++ [scipy](https://docs.scipy.org/doc/scipy/reference/)
++ [numba](http://numba.pydata.org/)
++ [matplotlib (for graphical output)](https://matplotlib.org/3.2.1/index.html)
++ [atomium (as a parser option)](https://github.com/samirelanduk/atomium)
