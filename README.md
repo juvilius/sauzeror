@@ -10,15 +10,27 @@ python sauzeror.py
 
 ## Example
 
-Align several domains, listed in *domains.txt*, with every structure in the *SCOPe* directory:
+Align several domains, listed in _domains.txt_, with every structure in the _SCOPe_ directory and save the output under _results.txt_:
 
 ```
-python sauzeror.py -v -mp align domains.txt ../SCOPe/ -o results.txt
+python sauzeror.py -v align domains.txt ../SCOPe/ -o results.txt
 ```
 
 ## Options
 
 Run sauzeror.py without arguments to view a help message.
+
+## Tips
+
+Please use this tool in a sort of batch situation.
+Importing and firing up multiprocessing can take about a second. 
+numba compiles the machine code for another half second the first time the script is run.
+
+No worries though: if you have some hundred or thousand structures, each alignment will take only milliseconds.
+
+
+Use atomium if you have anything but _normal_ .pdb files (i.e. mmcif) or if you only have the PDB-IDs for it to fetch.
+The primary parser works fine otherwise and is faster.
 
 ## Requirements
 

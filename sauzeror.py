@@ -31,28 +31,26 @@
 #               ╟──┤ further options may be given instead of [1..]                     │   ║
 #               ║  │   -h   --help              show this help message                 │   ║
 #               ║  │   -v   --verbose           for more verbosity (starting with #)   │   ║
-#               ║  │   -mp  --multiprocessing   use multiprocessing                    │   ║
 #               ║  │   -a   --atomium           use atomium parser                     │   ║
-#               ║  │   -nc  --no-cache          don't cache numbas machine code        │   ║
-#               ╟──┤   -nb  --no-banner         don't use the the banner in the output │   ║
+#               ╟──┤   -nc  --no-cache          don't cache numbas machine code        │   ║
 #               ║  └───────────────────────────────────────────────────────────────────┘   ║
 #               ╚══════════════════════════════════════════════════════════════════════════╝
 from time import time
 from time import strftime
 import numpy as np
-from numba import jit, float32, int32, types
 # numba is crucial for alignment... takes far too long otherwise
+from numba import jit, float32, int32, types
 from scipy import spatial
 from scipy import stats
 from scipy.special import ndtr
-import sys,os,pickle,re
+import sys,os,pickle
 import tarfile, io
 from pathlib import Path
 import itertools
 import argparse
 import multiprocessing as mp
 import matplotlib.pyplot as plt
-# atomium as an exception, since all other packages should be installed
+# atomium is optional, but all other packages should be installed
 try:
     import atomium
     has_atomium = True
@@ -64,7 +62,7 @@ np.set_printoptions(threshold=np.inf, linewidth=np.inf)
 # term_width = os.get_terminal_size().columns
 logo = []
 for i,line in enumerate(open(__file__, 'r')):
-    if 2 <= i < 8:
+    if 2 <= i <= 8:
         logo.append((line[2:-2]))
 helptext = []
 for i,line in enumerate(open(__file__, 'r')):
@@ -72,7 +70,8 @@ for i,line in enumerate(open(__file__, 'r')):
         helptext.append((line[1:].rstrip()))
     elif not line.startswith('#'):
         break
-### ARGPARSE
+
+### ARGPARSE ROUTINE
 
 parser = argparse.ArgumentParser('SAUZEROR', add_help=False)
 subparser = parser.add_subparsers()
@@ -90,8 +89,6 @@ parser_c.add_argument('input', type=str, help='input structure')
 
 parser.add_argument('-v', '--verbose', default=False, action='store_true', help='verbose output')
 parser.add_argument('-a', '--atomium', default=False, action='store_true', help='atomium parser')
-parser.add_argument('-nb', '--no-banner', default=False, action='store_true', help='no logo in output')
-parser.add_argument('-mp', '--multiprocessing', default=False, action='store_true')
 parser.add_argument('-nc', '--no-cache', action='store_false', default=True, help='DON\'T write numba machine code to cache')
 
 parser.add_argument('-h', '--help', action='store_true', help='that\'s better')
@@ -129,7 +126,7 @@ elif hasattr(args,'input1'):
     if os.path.isdir(args.input2):
         input2 = list(Path(args.input2).rglob('*.pdb'))
         input2.extend(Path(args.input2).rglob('*.ent'))
-        input2.extend(Path(args.input2).rglob('*.atm'))
+        input2.extend(Path(args.input1).rglob('*.atm'))
     elif os.path.isfile(args.input2):
         input2 = []
         for line in open(args.input2,'r'):
@@ -149,7 +146,6 @@ else:
 
 def dm_euclidian(a,b):
     ''' euclidian distance matrix of 2 sequences '''
-    # a,b = a[:,0],b[:,0]
     m,n = len(a),len(b)
     result = np.empty((m,n),dtype=np.single)
     if m < n:
@@ -232,6 +228,7 @@ def toggle_code(sequence, direction='1to3'):
         for three in chunks(sequence, 3):
             result += reslet[three]
     return result
+#############################################################
 
 ############
 # BLOSUM62 #
@@ -282,30 +279,27 @@ def progress_bar(title, value, end, bar_width=50):
     if percent==1.0:
         print()
 
+def scale2(x):
+    x -= x.mean(axis=0)
+    x /= np.sqrt(sum(x**2)/(x.shape[0] - 1))
+    return x
 
-def eigenrank(atom_coordinates, numba=1):
+def eigenrank(atom_coordinates):
     ''' calculating distance matrix -> adjacency matrices for different distance cutoffs -> PCA, scaling -> EigenRank '''
     if atom_coordinates.shape[1] != 3:
         atom_coordinates = atom_coordinates.T
 
-    def pca_correcting(leaderranks):
+    def pca(leaderranks):
         ''' PCA, checking maximal value for 8 angstrom cutoff and correcting principal components sign accordingly '''
         lrcenter = leaderranks - np.mean(leaderranks, axis=0)
         xt = lrcenter.T
         cov_matrix = np.cov(xt)
         eigenvalues, eigenvectors = np.linalg.eig(cov_matrix)
         ind = np.argsort(-eigenvalues)# [::-1] -> minus instead
-        princo = np.dot(eigenvectors[:,ind[0]].T, xt).T
-        i = np.argmax(lrcenter[:,4])
-        if not np.array_equal(np.greater(lrcenter[i,4], 0), np.greater(princo[i], 0)):
-            princo = -princo
-
-        def scale2(x):
-            x -= x.mean(axis=0)
-            x /= np.sqrt((x**2).sum()/(x.shape[0] - 1))
-            return x
-
-        return scale2(princo)
+        princo = np.dot(eigenvectors.T, xt).T
+        # fixing sign
+        princo = princo * np.sign(eigenvectors[0,:])
+        return scale2(princo[:,ind[0]])
 
     dm = spatial.distance_matrix(atom_coordinates, atom_coordinates, p=2)
     n = dm.shape[0]
@@ -333,13 +327,12 @@ def eigenrank(atom_coordinates, numba=1):
             h+=1
         ground = eg2[n]/n
         leaderranks [:,a-5] = np.delete(eg2,-1)+ground
-    return pca_correcting(leaderranks)
+    return pca(leaderranks)
 
 
 
 ### ALIGNMENT CLASS ###
 ### numba part:
-# @jit(types.Tuple((int32[:],int32[:],int32[:],float32))(float32[:,:],float32[:],float32[:],float32,float32,float32), cache=True)
 @jit(nopython=True, cache=args.no_cache)
 def nlocalalign(ab,gap,factor,limit):
     m,n = ab.shape
@@ -462,6 +455,7 @@ class structure:
     def __init__(self, file):
         self.file = file
         self.sccs = ''
+        self.atoms = []
         if use_atomium:
             self.atomium_parse(file)
         else:
@@ -478,7 +472,6 @@ class structure:
             struc.id = struc.code
 
         self.coord_dict = {}
-        self.atoms = []
         for chain in struc.model.chains():
             coords = []
             for res in chain:
@@ -502,38 +495,38 @@ class structure:
         atom_id = -20
         res_id = -20
         # no HIS tags etc....or?
-        atoms = []
         # STUPID PDB
         for line in open(file, 'r'):
             if (line.startswith('ATOM') and
-                    # res_id < int(line[22:26]) and
-                    # atom_id < int(line[5:11]) and
+                    # res_id < int(line[22:26]) and   # in case there's misbehaviour with faulty 
+                    # atom_id < int(line[5:11]) and   # .pdb files --> allows only "right" order
                     line[13:15] == 'CA' and
-                    line[16] in ['A',' ']):
+                    line[16] in ['A',' ']):           # take only first alternative
                 atom_id = int(line[5:11])
                 x,y,z = float(line[30:38]),float(line[38:46]),float(line[46:54])
                 res = line[17:20]
                 res_id = int(line[22:26])
-                atoms.append({'res_id':res_id, 'res':res, 'atom_id':atom_id, 'coords':[x,y,z]})
-            elif line.startswith('REMARK  99 ASTRAL SCOPe-sccs:'):
-                self.sccs = line[30:].rstrip()
-            elif line.startswith('REMARK  99 ASTRAL SCOPe-sid:'):
-                self.sid = line[29:].rstrip()
+                self.atoms.append({'res_id':res_id, 'res':res, 'atom_id':atom_id, 'coords':[x,y,z]})
+            elif line.startswith('REMARK  99 ASTRAL SCOPe-sccs:'):  # \
+                self.sccs = line[30:].rstrip()                      # | if at all you're interested
+            elif line.startswith('REMARK  99 ASTRAL SCOPe-sid:'):   # | to know SCOPe's IDs
+                self.sid = line[29:].rstrip()                       # /
             # stop parsing after first chain 
             # use --atomium and read structure.atoms for all chains
             elif (line.startswith('ENDMDL') or line.startswith('TER')):
                 break
-        self.atoms = atoms
-        self.coordinates = np.asarray([a['coords'] for a in atoms])
+        self.coordinates = np.asarray([a['coords'] for a in self.atoms])
         self.l = self.coordinates.shape[0]
         self.er = eigenrank(self.coordinates)
+
 
 ### OUTPUT FILE
 if args.output != False:
     output_file = open(args.output, 'w')
 ### INITIATING STRUCTURE OBJECTS
 t4 = time()
-if args.multiprocessing:
+# automatically fire up all processors which can take up to a second
+if len(input1)+len(input2) >= 20:
     n_cores = mp.cpu_count()
     with mp.Pool(n_cores) as pool:
         structures1 = pool.map(structure, input1)
@@ -543,42 +536,45 @@ else:
     structures1 = [structure(s1) for s1 in input1]
     t5 = time()
     structures2 = [structure(s2) for s2 in input2]
+
+# some information about the upcoming alignments
 if args.verbose:
     nstr1=len(structures1)
     nstr2=len(structures2)
     total_number_of_alignments = nstr1*nstr2
     if args.output == False:
-        print('# EigenRank calculation time: {0:.3f}s + {1:.3f}s = {2:.3f}s'.format(t5-t4, time()-t5, time()-t4))
+        print('\n'.join(logo))
+        print('\n# EigenRank calculation time: {0:.3f}s + {1:.3f}s = {2:.3f}s'.format(t5-t4, time()-t5, time()-t4))
         print('# input1: {0} structures, input2: {1} structures'.format(nstr1,nstr2))
         print('# starting pairwise alignment (gap cost = {0}, limit = {1})\n'.format(args.gap_cost, args.limit))
     else:
-        output_file.write('# EigenRank calculation time: {0:.3f}s + {1:.3f}s = {2:.3f}s\n'.format(t5-t4, time()-t5, time()-t4))
+        output_file.write('\n'.join(logo))
+        output_file.write('\n\n# EigenRank calculation time: {0:.3f}s + {1:.3f}s = {2:.3f}s\n'.format(t5-t4, time()-t5, time()-t4))
         output_file.write('# input1: {0} structures, input2: {1} structures\n'.format(nstr1,nstr2))
         output_file.write('# starting pairwise alignment (gap cost = {0}, limit = {1})\n'.format(args.gap_cost, args.limit))
         output_file.flush()
-# with open('structure_COPS.pkl', 'wb') as p:
-#     pickle.dump(qstructures, p)
-#     pickle.dump(tstructures, p)
 
-# with open('structure_COPS.pkl', 'rb') as p:
-    # qstructures=pickle.load(p)
-    # tstructures=pickle.load(p)
+# with open('structures.pkl', 'wb') as p:   # ⎫
+#     pickle.dump(query_structures, p)      # ⎪ pickle your structure objects
+#     pickle.dump(target_structures, p)     # ⎪ 
+                                            # ⎬ save parsing and ER calculation time
+# with open('structures.pkl', 'rb') as p:   # ⎪ 
+    # query_structures=pickle.load(p)       # ⎪ data of all atoms incl. coordinates
+    # target_structures=pickle.load(p)      # ⎭ and ER profile 
 
-def sauzer(q,t,gap=args.gap_cost,limit=args.limit):
-    ''' generating output for alignment '''
+
+### OUTPUT GENERATOR
+def sauzer(q,t,queue=0,gap=args.gap_cost,limit=args.limit):
     a = Alignment(q,t,gap,limit)
     chain_1 = ''.join([toggle_code(q.atoms[i]['res'],'3to1') if (g!=1) else '-' for i,g in zip(a.i_list,a.is_gap)])[::-1]
     chain_2 = ''.join([toggle_code(t.atoms[j]['res'],'3to1') if (g!=2) else '-' for j,g in zip(a.j_list,a.is_gap)])[::-1]
-    if args.no_banner:
-        output = []
-    else:
-        output = ['', *logo, '']
+    output = ['']
     output.append(' '.join(['chain_1:','{:4d}'.format(q.l), str(q.file), q.sccs]))
     output.append(' '.join(['chain_2:','{:4d}'.format(t.l), str(t.file), t.sccs]))
     output.append('')
     output.append(' '.join(['alignment_length:', '{:d}'.format(a.traceback_len),
         'gaps:', '{0:d} ({1:.2%})'.format(a.nrgaps,a.nrgaps/a.traceback_len),
-        # 'RMSD:', '{:.3f}'.format(a.rmsd),
+        'RMSD:', '{:.3f}'.format(a.rmsd),
         '\nGDT-TS:', '{:.3f}'.format(a.gdt_ts),
         'GDT-sim:', '{:.3f}'.format(a.gdt_sim),
         'Zerscore:', '{:.3f}'.format(a.score),
@@ -593,44 +589,13 @@ def sauzer(q,t,gap=args.gap_cost,limit=args.limit):
     output = '\n'.join(output)
     if args.output == False:
         print(output)
-    else:
-        output_file.write(output)
-    return output
-
-
-def sauzer_mp(queue,q,t,gap=args.gap_cost,limit=args.limit):
-    ''' generating output for alignment '''
-    a = Alignment(q,t,gap,limit)
-    chain_1 = ''.join([toggle_code(q.atoms[i]['res'],'3to1') if (g!=1) else '-' for i,g in zip(a.i_list,a.is_gap)])[::-1]
-    chain_2 = ''.join([toggle_code(t.atoms[j]['res'],'3to1') if (g!=2) else '-' for j,g in zip(a.j_list,a.is_gap)])[::-1]
-    if args.no_banner:
-        output = []
-    else:
-        output = ['', *logo, '']
-    output.append(' '.join(['chain_1:','{:4d}'.format(q.l), str(q.file), q.sccs]))
-    output.append(' '.join(['chain_2:','{:4d}'.format(t.l), str(t.file), t.sccs]))
-    output.append('')
-    output.append(' '.join(['alignment_length:', '{:d}'.format(a.traceback_len),
-        'gaps:', '{0:d} ({1:.2%})'.format(a.nrgaps,a.nrgaps/a.traceback_len),
-        # 'RMSD:', '{:.3f}'.format(a.rmsd),
-        '\nGDT-TS:', '{:.3f}'.format(a.gdt_ts),
-        'GDT-sim:', '{:.3f}'.format(a.gdt_sim),
-        'Zerscore:', '{:.3f}'.format(a.score),
-        '\nTMscore (normalised by length of chain_1):', '{:.5f}'.format(a.tmq),
-        '\nTMscore (normalised by length of chain_2):', '{:.5f}'.format(a.tmt),
-        '\nidentity:', '{:.3f}'.format(np.count_nonzero([bool(a==b) for a,b in zip(chain_1,chain_2)])/a.traceback_len),'similarity:','{:.3f}'.format(np.count_nonzero([bool(blosum(a,b)>0) for a,b in zip(chain_1,chain_2)])/a.traceback_len)]))
-    output.append('')
-    output.append(chain_1)
-    output.append(''.join([':' if (g==0 and d<5) else ' ' for d,g in zip(a.dists ,a.is_gap)]))
-    output.append(chain_2)
-    output.append('')
-    output = '\n'.join(output)
-    if args.output == False:
-        print(output)
+    elif queue == 0: # which means it was decided against multiprocessing
+        output_file.write('\n'+output)
     else:
         queue.put(output)
     return output
 
+# to safely write files while multiprocessing
 def writing2output(q):
     while 1:
         m = q.get()
@@ -640,16 +605,15 @@ def writing2output(q):
         output_file.flush()
 
 ### PAIRWISE ALIGNMENTS
-# (for now merely printing to stdout; append '> resultfile.txt' at the end of your command)
 t3 = time()
-if args.multiprocessing:
+if len(structures1)*len(structures2) >= 16:
     n_cores = mp.cpu_count()
     manager = mp.Manager()
     queue = manager.Queue()
-    co = itertools.product([queue], structures1, structures2)
+    co = itertools.product(structures1, structures2, [queue])
     with mp.Pool(n_cores) as pool:
         filewriter = pool.apply_async(writing2output, (queue,))
-        outputs = pool.starmap(sauzer_mp, co)
+        outputs = pool.starmap(sauzer, co)
         queue.put('kill')
 else:
     co = itertools.product(structures1, structures2)
@@ -659,7 +623,7 @@ if args.verbose:
     if args.output == False:
         print('# alignment time: {0:.3f}s, {1:.3f}ms/aligment'.format(t4, t4/total_number_of_alignments*1000))
     else:
-        output_file.write('# alignment time: {0:.3f}s, {1:.3f}ms/aligment'.format(t4, t4/total_number_of_alignments*1000))
+        output_file.write('\n# alignment time: {0:.3f}s, {1:.3f}ms/aligment'.format(t4, t4/total_number_of_alignments*1000))
 if args.output != False:
     output_file.close()
 sys.exit()
