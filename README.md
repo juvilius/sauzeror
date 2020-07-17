@@ -22,12 +22,10 @@ Run sauzeror.py without arguments to view a help message.
 
 ## Tips
 
-Please use this tool in a sort of batch situation.
+Please only use this tool in a sort of batch situation.
 Importing and firing up multiprocessing can take about a second. 
-numba compiles the machine code for another half second the first time the script is run.
-
+numba compiles the machine code for another half second the first time the script is runs.  
 No worries though: if you have some hundred or thousand structures, each alignment will take only milliseconds.
-
 
 Use atomium if you have anything but _normal_ .pdb files (i.e. mmcif) or if you only have the PDB-IDs for it to fetch.
 The primary parser works fine otherwise and is faster.
