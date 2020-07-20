@@ -28,7 +28,15 @@ numba compiles the machine code for another half second the first time the scrip
 No worries though: if you have some hundred or thousand structures, each alignment will take only milliseconds.
 
 Use atomium if you have anything but _normal_ .pdb files (i.e. mmcif) or if you only have the PDB-IDs for it to fetch.
-The primary parser works fine otherwise and is faster.
+The primary parser works fine otherwise and is faster.  
+\
+
+Only the first chain of the first model is selected of each structure file. There are two options should you want to analyse more multiple chains per structure:
+
++ split the file so that there's only one chain per file
++ change the script to use all chains
+
+For assistance with SAUZEROR email me at <jvoigt4@hs-mittweida.de>. I'm also open to any discussion regarding the script or it's underlying method.
 
 ## Requirements
 

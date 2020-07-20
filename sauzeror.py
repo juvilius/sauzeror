@@ -291,8 +291,9 @@ def eigenrank(atom_coordinates):
 
     def pca(leaderranks):
         ''' PCA, checking maximal value for 8 angstrom cutoff and correcting principal components sign accordingly '''
-        lrcenter = leaderranks - np.mean(leaderranks, axis=0)
-        xt = lrcenter.T
+        # lrcenter = leaderranks - np.mean(leaderranks, axis=0)
+        # xt = lrcenter.T
+        xt = scale2(leaderranks).T
         cov_matrix = np.cov(xt)
         eigenvalues, eigenvectors = np.linalg.eig(cov_matrix)
         ind = np.argsort(-eigenvalues)# [::-1] -> minus instead
