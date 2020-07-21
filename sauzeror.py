@@ -32,6 +32,8 @@
 #               ║  │   -h   --help              show this help message                 │   ║
 #               ║  │   -v   --verbose           for more verbosity (starting with #)   │   ║
 #               ║  │   -a   --atomium           use atomium parser                     │   ║
+#               ║  │        --csv               csv output for easy parsing;           │   ║
+#               ║  │                            run with --csv alone to show header    │   ║
 #               ╟──┤   -nc  --no-cache          don't cache numbas machine code        │   ║
 #               ║  └───────────────────────────────────────────────────────────────────┘   ║
 #               ╚══════════════════════════════════════════════════════════════════════════╝
@@ -89,6 +91,7 @@ parser_c.add_argument('input', type=str, help='input structure')
 
 parser.add_argument('-v', '--verbose', default=False, action='store_true', help='verbose output')
 parser.add_argument('-a', '--atomium', default=False, action='store_true', help='atomium parser')
+parser.add_argument('--csv', default=False, action='store_true', help='output csv for easy parsing')
 parser.add_argument('-nc', '--no-cache', action='store_false', default=True, help='DON\'T write numba machine code to cache')
 
 parser.add_argument('-h', '--help', action='store_true', help='that\'s better')
@@ -138,6 +141,9 @@ elif hasattr(args,'input1'):
                 else:
                     input2.append(os.path.abspath(line.rstrip()))
 else:
+    if args.csv:
+        print('chain_1,length_1,sccs_1,chain_2,length_2,sccs_2,ali_length,gaps,gaps_percent,rmsd,gdt_ts,gdt_similarity,zer_score,tm_score1,tm_score2,identity,similarity\naligned chain sequence 1\nindication of < 5 Å\naligned chain sequence 2')
+        sys.exit()
     if not args.help:
         print('\n'.join(helptext))
     sys.exit()
@@ -455,7 +461,7 @@ class Alignment:
 class structure:
     def __init__(self, file):
         self.file = file
-        self.sccs = ''
+        self.sccs = ' '
         self.atoms = []
         if use_atomium:
             self.atomium_parse(file)
@@ -560,8 +566,8 @@ if args.verbose:
 #     pickle.dump(target_structures, p)     # ⎪ 
                                             # ⎬ save parsing and ER calculation time
 # with open('structures.pkl', 'rb') as p:   # ⎪ 
-    # query_structures=pickle.load(p)       # ⎪ data of all atoms incl. coordinates
-    # target_structures=pickle.load(p)      # ⎭ and ER profile 
+    # query_structures=pickle.load(p)       # ⎪ contain data of all atoms
+    # target_structures=pickle.load(p)      # ⎭ incl. coordinates and ER profile 
 
 
 ### OUTPUT GENERATOR
@@ -570,19 +576,42 @@ def sauzer(q,t,queue=0,gap=args.gap_cost,limit=args.limit):
     chain_1 = ''.join([toggle_code(q.atoms[i]['res'],'3to1') if (g!=1) else '-' for i,g in zip(a.i_list,a.is_gap)])[::-1]
     chain_2 = ''.join([toggle_code(t.atoms[j]['res'],'3to1') if (g!=2) else '-' for j,g in zip(a.j_list,a.is_gap)])[::-1]
     output = ['']
-    output.append(' '.join(['chain_1:','{:4d}'.format(q.l), str(q.file), q.sccs]))
-    output.append(' '.join(['chain_2:','{:4d}'.format(t.l), str(t.file), t.sccs]))
-    output.append('')
-    output.append(' '.join(['alignment_length:', '{:d}'.format(a.traceback_len),
-        'gaps:', '{0:d} ({1:.2%})'.format(a.nrgaps,a.nrgaps/a.traceback_len),
-        'RMSD:', '{:.3f}'.format(a.rmsd),
-        '\nGDT-TS:', '{:.3f}'.format(a.gdt_ts),
-        'GDT-sim:', '{:.3f}'.format(a.gdt_sim),
-        'Zerscore:', '{:.3f}'.format(a.score),
-        '\nTMscore (normalised by length of chain_1):', '{:.5f}'.format(a.tmq),
-        '\nTMscore (normalised by length of chain_2):', '{:.5f}'.format(a.tmt),
-        '\nidentity:', '{:.3f}'.format(np.count_nonzero([bool(a==b) for a,b in zip(chain_1,chain_2)])/a.traceback_len),'similarity:','{:.3f}'.format(np.count_nonzero([bool(blosum(a,b)>0) for a,b in zip(chain_1,chain_2)])/a.traceback_len)]))
-    output.append('')
+
+    if not args.csv:
+        output.append(' '.join(['chain_1:','{:4d}'.format(q.l), str(q.file), q.sccs]))
+        output.append(' '.join(['chain_2:','{:4d}'.format(t.l), str(t.file), t.sccs]))
+        output.append('')
+        output.append(' '.join(['alignment_length:', '{:d}'.format(a.traceback_len),
+            'gaps:', '{0:d} ({1:.2%})'.format(a.nrgaps,a.nrgaps/a.traceback_len),
+            'RMSD:', '{:.3f}'.format(a.rmsd),
+            '\nGDT-TS:', '{:.3f}'.format(a.gdt_ts),
+            'GDT-sim:', '{:.3f}'.format(a.gdt_sim),
+            'Zerscore:', '{:.3f}'.format(a.score),
+            '\nTMscore (normalised by length of chain_1):', '{:.5f}'.format(a.tmq),
+            '\nTMscore (normalised by length of chain_2):', '{:.5f}'.format(a.tmt),
+            '\nidentity:', '{:.3f}'.format(np.count_nonzero([bool(a==b) for a,b in zip(chain_1,chain_2)])/a.traceback_len),'similarity:','{:.3f}'.format(np.count_nonzero([bool(blosum(a,b)>0) for a,b in zip(chain_1,chain_2)])/a.traceback_len)]))
+        output.append('')
+
+    else:
+        values = ['"{}"'.format(str(q.file)),
+            str(q.l),
+            q.sccs,
+            '"{}"'.format(str(t.file)),
+            str(t.l),
+            t.sccs,
+            '{:d}'.format(a.traceback_len),
+            '{:d}'.format(a.nrgaps),
+            '{:.2}'.format(a.nrgaps/a.traceback_len),
+            '{:.3f}'.format(a.rmsd),
+            '{:.3f}'.format(a.gdt_ts),
+            '{:.3f}'.format(a.gdt_sim),
+            '{:.3f}'.format(a.score),
+            '{:.5f}'.format(a.tmq),
+            '{:.5f}'.format(a.tmt),
+            '{:.3f}'.format(np.count_nonzero([bool(a==b) for a,b in zip(chain_1,chain_2)])/a.traceback_len),
+            '{:.3f}'.format(np.count_nonzero([bool(blosum(a,b)>0) for a,b in zip(chain_1,chain_2)])/a.traceback_len)]
+        output.append(','.join(values)) # commafication of values
+
     output.append(chain_1)
     output.append(''.join([':' if (g==0 and d<5) else ' ' for d,g in zip(a.dists ,a.is_gap)]))
     output.append(chain_2)
