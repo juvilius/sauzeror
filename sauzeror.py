@@ -47,6 +47,7 @@ from scipy import stats
 from scipy.special import ndtr
 import sys,os,pickle
 import tarfile, io
+import gzip
 from pathlib import Path
 import itertools
 import argparse
@@ -112,42 +113,34 @@ if hasattr(args,'input'):
     print('classification of ', args.input)
     sys.exit()
 elif hasattr(args,'input1'):
-    if os.path.isdir(args.input1):
-        input1 = list(Path(args.input1).rglob('*.pdb'))
-        input1.extend(Path(args.input1).rglob('*.ent'))
-        input1.extend(Path(args.input1).rglob('*.atm'))
-    elif os.path.isfile(args.input1):
-        input1 = []
-        for line in open(args.input1,'r'):
-            line=line.rstrip()
-            if not line.startswith('#'):
-                if not os.path.isfile(line):
-                    input1 = [os.path.abspath(args.input1)]
-                    break
-                else:
-                    input1.append(os.path.abspath(line.rstrip()))
-    if os.path.isdir(args.input2):
-        input2 = list(Path(args.input2).rglob('*.pdb'))
-        input2.extend(Path(args.input2).rglob('*.ent'))
-        input2.extend(Path(args.input1).rglob('*.atm'))
-    elif os.path.isfile(args.input2):
-        input2 = []
-        for line in open(args.input2,'r'):
-            line=line.rstrip()
-            if not line.startswith('#'):
-                if not os.path.isfile(line):
-                    input2 = [os.path.abspath(args.input2)]
-                    break
-                else:
-                    input2.append(os.path.abspath(line.rstrip()))
+    inputs = dict()
+    for i,inargs in enumerate([args.input1, args.input2]):
+        if os.path.isdir(inargs):
+            inputs['input{}'.format(i)] = list(Path(inargs).rglob('*.pdb'))
+            inputs['input{}'.format(i)].extend(Path(inargs).rglob('*.ent'))
+            inputs['input{}'.format(i)].extend(Path(inargs).rglob('*.cif'))
+            inputs['input{}'.format(i)].extend(Path(inargs).rglob('*.atm'))
+            inputs['input{}'.format(i)].extend(Path(inargs).rglob('*.gz'))
+        elif os.path.isfile(inargs):
+            inputs['input{}'.format(i)] = []
+            if 'gz' in str(inargs):
+                inputs['input{}'.format(i)] = [os.path.abspath(inargs)]
+            else:
+                for line in open(inargs,'r'):
+                    line=line.rstrip()
+                    if not line.startswith('#'):
+                        if not os.path.isfile(line):
+                            inputs['input{}'.format(i)] = [os.path.abspath(inargs)]
+                            break
+                        else:
+                            inputs['input{}'.format(i)].append(os.path.abspath(line.rstrip()))
 else:
     if args.csv:
-        print('chain_1,length_1,sccs_1,chain_2,length_2,sccs_2,ali_length,gaps,gaps_percent,rmsd,gdt_ts,gdt_similarity,zer_score,tm_score1,tm_score2,identity,similarity\naligned chain sequence 1\nindication of < 5 Å\naligned chain sequence 2')
+        print('chain_1,length_1,sccs_1,chain_2,length_2,sccs_2,ali_length,gaps,gaps_percent,rmsd,t_sauze,gdt_ts,gdt_similarity,zer_score,tm_score1,tm_score2,identity,similarity\naligned chain sequence 1\nindication of < 5 Å\naligned chain sequence 2')
         sys.exit()
     if not args.help:
         print('\n'.join(helptext))
     sys.exit()
-
 ### GENERAL FUNCTIONS
 
 def dm_euclidian(a,b):
@@ -310,10 +303,10 @@ def eigenrank(atom_coordinates):
 
     dm = spatial.distance_matrix(atom_coordinates, atom_coordinates, p=2)
     n = dm.shape[0]
-    leaderranks = np.zeros((n,11))
+    leaderranks = np.zeros((n,10))
     eg3 = np.ones(n+1)
     eg3[n] = 0  # ground node
-    for a in range(5, 16):
+    for a in range(5, 15):
         eg1 = np.ones((n+1,n+1))
         eg1[:n,:n] = np.greater_equal(a, dm)
         np.fill_diagonal(eg1, 0)
@@ -453,6 +446,9 @@ class Alignment:
         self.tmt = np.sum(1/(1+(di/d0)**2))/self.target.l
         self.tm = (self.tmq+self.tmt)/2
 
+        # ridiculous score that gives the best results in the COPS benchmark
+        self.t_sauze = self.tm*self.score**2*self.traceback_len**2*self.gdt_ts**2*self.query.l**-0.5*self.target.l**-0.5
+
 
 
 #######################################################################
@@ -503,7 +499,11 @@ class structure:
         res_id = -20
         # no HIS tags etc....or?
         # STUPID PDB
-        for line in open(file, 'r'):
+        if '.gz' in str(file):
+            foe = gzip.open(file,'rt')
+        else:
+            foe = open(file, 'r')
+        for line in foe:
             if (line.startswith('ATOM') and
                     # res_id < int(line[22:26]) and   # in case there's misbehaviour with faulty 
                     # atom_id < int(line[5:11]) and   # .pdb files --> allows only "right" order
@@ -532,6 +532,9 @@ if args.output != False:
     output_file = open(args.output, 'w')
 ### INITIATING STRUCTURE OBJECTS
 t4 = time()
+# not too elegant... but easier than calling the dictionary in every line
+input1 = inputs['input0']
+input2 = inputs['input1']
 # automatically fire up all processors which can take up to a second
 if len(input1)+len(input2) >= 20:
     n_cores = mp.cpu_count()
@@ -584,6 +587,7 @@ def sauzer(q,t,queue=0,gap=args.gap_cost,limit=args.limit):
         output.append(' '.join(['alignment_length:', '{:d}'.format(a.traceback_len),
             'gaps:', '{0:d} ({1:.2%})'.format(a.nrgaps,a.nrgaps/a.traceback_len),
             'RMSD:', '{:.3f}'.format(a.rmsd),
+            't-sauze:', '{:.3f}'.format(a.t_sauze),
             '\nGDT-TS:', '{:.3f}'.format(a.gdt_ts),
             'GDT-sim:', '{:.3f}'.format(a.gdt_sim),
             'Zerscore:', '{:.3f}'.format(a.score),
@@ -603,6 +607,7 @@ def sauzer(q,t,queue=0,gap=args.gap_cost,limit=args.limit):
             '{:d}'.format(a.nrgaps),
             '{:.2}'.format(a.nrgaps/a.traceback_len),
             '{:.3f}'.format(a.rmsd),
+            '{:.3f}'.format(a.t_sauze),
             '{:.3f}'.format(a.gdt_ts),
             '{:.3f}'.format(a.gdt_sim),
             '{:.3f}'.format(a.score),
