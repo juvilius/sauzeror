@@ -290,9 +290,9 @@ def eigenrank(atom_coordinates):
 
     def pca(leaderranks):
         ''' PCA, checking maximal value for 8 angstrom cutoff and correcting principal components sign accordingly '''
-        # lrcenter = leaderranks - np.mean(leaderranks, axis=0)
-        # xt = lrcenter.T
-        xt = scale2(leaderranks).T
+        lrcenter = leaderranks - np.mean(leaderranks, axis=0)
+        xt = lrcenter.T
+        # xt = scale2(leaderranks).T
         cov_matrix = np.cov(xt)
         eigenvalues, eigenvectors = np.linalg.eig(cov_matrix)
         ind = np.argsort(-eigenvalues)# [::-1] -> minus instead
@@ -459,6 +459,7 @@ class structure:
         self.file = file
         self.sccs = ' '
         self.atoms = []
+        self.id = os.path.basename(file).split('.')[0]
         if use_atomium:
             self.atomium_parse(file)
         else:
@@ -469,10 +470,6 @@ class structure:
             struc = atomium.open(str(file))
         except FileNotFoundError:
             struc = atomium.fetch(str(file))
-        if struc.code == None:
-            struc.id = os.path.basename(file).split('.')[0]
-        else:
-            struc.id = struc.code
 
         self.coord_dict = {}
         for chain in struc.model.chains():
@@ -492,7 +489,10 @@ class structure:
         first_chain = sorted(self.coord_dict.keys())[0]
         self.coordinates = self.coord_dict[first_chain]
         self.l = self.coordinates.shape[0]
-        self.er = self.er_dict[first_chain]
+        if self.l < 10:
+            print('{} is too short for a sensible EigenRank ({})'.format(self.id, self.l))
+        else:
+            self.er = self.er_dict[first_chain]
 
     def parse_coords(self,file):
         atom_id = -20
@@ -524,7 +524,10 @@ class structure:
                 break
         self.coordinates = np.asarray([a['coords'] for a in self.atoms])
         self.l = self.coordinates.shape[0]
-        self.er = eigenrank(self.coordinates)
+        if self.l < 10:
+            print('{} is too short for a sensible EigenRank ({})'.format(self.id, self.l))
+        else:
+            self.er = eigenrank(self.coordinates)
 
 
 ### OUTPUT FILE
@@ -575,6 +578,8 @@ if args.verbose:
 
 ### OUTPUT GENERATOR
 def sauzer(q,t,queue=0,gap=args.gap_cost,limit=args.limit):
+    if not (hasattr(q, 'er') and hasattr(t, 'er')):
+        return None
     a = Alignment(q,t,gap,limit)
     chain_1 = ''.join([toggle_code(q.atoms[i]['res'],'3to1') if (g!=1) else '-' for i,g in zip(a.i_list,a.is_gap)])[::-1]
     chain_2 = ''.join([toggle_code(t.atoms[j]['res'],'3to1') if (g!=2) else '-' for j,g in zip(a.j_list,a.is_gap)])[::-1]
