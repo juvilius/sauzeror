@@ -171,7 +171,10 @@ def rmsd(a,b):
     ''' a and b are vectors '''
     diff = np.array(a) - np.array(b)
     n = len(a)
-    return np.sqrt((diff * diff).sum() / n)
+    if n != 0:
+        return np.sqrt((diff * diff).sum() / n)
+    else:
+        return 1e06
     # return np.sqrt(((a-b)**2).sum() / n)
 
 def chunks(s, n):
@@ -288,19 +291,6 @@ def eigenrank(atom_coordinates):
     if atom_coordinates.shape[1] != 3:
         atom_coordinates = atom_coordinates.T
 
-    def pca(leaderranks):
-        ''' PCA, checking maximal value for 8 angstrom cutoff and correcting principal components sign accordingly '''
-        lrcenter = leaderranks - np.mean(leaderranks, axis=0)
-        xt = lrcenter.T
-        # xt = scale2(leaderranks).T
-        cov_matrix = np.cov(xt)
-        eigenvalues, eigenvectors = np.linalg.eig(cov_matrix)
-        ind = np.argsort(-eigenvalues)# [::-1] -> minus instead
-        princo = np.dot(eigenvectors.T, xt).T
-        # fixing sign
-        princo = princo * np.sign(eigenvectors[0,:])
-        return scale2(princo[:,ind[0]])
-
     dm = spatial.distance_matrix(atom_coordinates, atom_coordinates, p=2)
     n = dm.shape[0]
     leaderranks = np.zeros((n,10))
@@ -327,6 +317,20 @@ def eigenrank(atom_coordinates):
             h+=1
         ground = eg2[n]/n
         leaderranks [:,a-5] = np.delete(eg2,-1)+ground
+
+    def pca(leaderranks):
+        ''' PCA '''
+        lrcenter = leaderranks - np.mean(leaderranks, axis=0)
+        xt = lrcenter.T
+        # xt = scale2(leaderranks).T
+        cov_matrix = np.cov(xt)
+        eigenvalues, eigenvectors = np.linalg.eig(cov_matrix)
+        ind = np.argsort(-eigenvalues)# [::-1] -> minus instead
+        princo = np.dot(eigenvectors.T, xt).T
+        # fixing sign
+        princo = princo * np.sign(eigenvectors[0,:])
+        return scale2(princo[:,ind[0]])
+
     return pca(leaderranks)
 
 
