@@ -37,6 +37,7 @@ The primary parser works fine otherwise and is faster.
         2. change the script to use all chains
 
 For assistance with SAUZEROR email me at <jvoigt4@hs-mittweida.de>. I'm also open to any discussion regarding the script or it's underlying method.
+Variants of SAUZEROR and other stuff is at <https://github.com/juvilius/sauzeror-etc>.
 
 ## Requirements
 

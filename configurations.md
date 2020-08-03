@@ -22,6 +22,8 @@
   - different amounts of principal components –\> change indices of
     `princo`
 
+  - different cutoffs; now always 5 Å - 14 Å as it's proven to be more performant
+
   - z-scaling of LRs before/after –\> `scale2` (from R, different to
     `scipy.stats.scale`)
 
@@ -32,7 +34,7 @@
 
   - refinement step
 
-## Parameters for different profiles
+## Parameters in Smith-Waterman-algorithm for different profiles
 
 |                  description                  | gap | limit |
 | :-------------------------------------------- | --- | ----- |
