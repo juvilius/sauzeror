@@ -10,32 +10,44 @@
 #╚══════════════╦══════╦════════════════════════════════════════════════════════════╦══════╦══════════════════╝
 #               ║      ║ Structure Alignments Using Z-scaled EigenRanks Of Residues ║      ║
 #               ║      ╚════════════════════════════════════════════════════════════╝      ║
-#               ║  ┌────────────────────────────────────────────────────────────────────┐  ║
-#               ╟──┤ python sauzeror.py [1..] align input1 input2 [2..] [-o result.txt] │  ║
-#               ║  └────────────────────────────────────────────────────────────────────┘  ║
-#               ║  ┌──────────────────────────────────────────────────────┐                ║
-#               ╟──┤ an input can be                                      │                ║
-#               ║  │    (1) a file name,                                  │                ║
-#               ║  │    (2) a directory (filtering for .pdb, .ent, .atm), │                ║
-#               ║  │    (3) a file with a list of files; one per line.    │                ║
-#               ║  │        (e.g. find ~/path/to/pdb -name '*.pdb')       │                ║
-#               ║  │ these 3 options can be mixed.                        │                ║
-#               ║  │                                                      │                ║
-#               ║  │ alignment parameters may be given at the end ([2..]) │                ║
-#               ║  │   --gap-cost     gap cost parameter (default 0.8)    │                ║
-#               ║  │   --limit        limit parameter (default 0.7)       │                ║
-#               ║  │                                                      │                ║
-#               ╟──┤   -o  --output     output file                       │                ║
-#               ║  └──────────────────────────────────────────────────────┘                ║
+#               ║  ┌─────────────────────────────────────┐                                 ║
+#               ╟──┤ python sauzeror.py [...] MODE [...] │                                 ║
+#               ║  └─────────────────────────────────────┘                                 ║
 #               ║  ┌───────────────────────────────────────────────────────────────────┐   ║
-#               ╟──┤ further options may be given instead of [1..]                     │   ║
-#               ║  │   -h   --help              show this help message                 │   ║
+#               ╟──┤   -h   --help              show this help message                 │   ║
 #               ║  │   -v   --verbose           for more verbosity (starting with #)   │   ║
 #               ║  │   -a   --atomium           use atomium parser                     │   ║
-#               ║  │        --csv               csv output for easy parsing;           │   ║
-#               ║  │                            run with --csv alone to show header    │   ║
-#               ╟──┤   -nc  --no-cache          don't cache numbas machine code        │   ║
+#               ║  │        --csv               csv output for easy parsing            │   ║
+#               ╟──┤                            (run with --csv alone to show header)  │   ║
 #               ║  └───────────────────────────────────────────────────────────────────┘   ║
+#               ║  ┌─────────────────────────────────────────────────────────────────────┐ ║
+#               ║  │  ALIGN mode                                                         │ ║
+#               ║  │ ╍╍╍╍╍╍╍╍╍╍╍╍                                                        │ ║
+#               ╟──┤                                                                     │ ║
+#               ║  │  python sauzeror.py [...] align input1 input2 [-o result.txt] [...] │ ║
+#               ║  │                                                                     │ ║
+#               ║  │  an input can be                                                    │ ║
+#               ║  │    (1) a file name,                                                 │ ║
+#               ║  │    (2) a directory (filtering for .pdb, .ent, .atm),                │ ║
+#               ║  │    (3) a file with a list of files; one per line.                   │ ║
+#               ║  │        (e.g. find ~/path/to/pdb -name '*.pdb')                      │ ║
+#               ║  │  these 3 options can be mixed.                                      │ ║
+#               ║  │                                                                     │ ║
+#               ║  │   -o  --output     output file                                      │ ║
+#               ║  │                                                                     │ ║
+#               ╟──┤  alignment parameters may be given at the end ([...])               │ ║
+#               ║  │   --gap-cost     gap cost parameter (default 0.8)                   │ ║
+#               ║  │   --limit        limit parameter (default 0.7)                      │ ║
+#               ║  └─────────────────────────────────────────────────────────────────────┘ ║
+#               ║  ┌─────────────────────────────────────────────────┐                     ║
+#               ╟──┤  PROFILES mode                                  │                     ║
+#               ║  │ ╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍                                 │                     ║
+#               ║  │                                                 │                     ║
+#               ║  │  python sauzeror.py [...] profiles input        │                     ║
+#               ║  │                                                 │                     ║
+#               ║  │  create file with atom coordinates, residue     │                     ║
+#               ╟──┤  and ER/LR profiles and save it as {id}.profile │                     ║
+#               ║  └─────────────────────────────────────────────────┘                     ║
 #               ╚══════════════════════════════════════════════════════════════════════════╝
 from time import time
 from time import strftime
@@ -87,15 +99,12 @@ parser_a.add_argument('--limit', type=float, default=0.7, help='limit parameter 
 parser_a.add_argument('-o', '--output', default=False, help='output to file instead of stdout')
 
 # ER/LR output
-parser_b = subparser.add_parser('eigenrank', help='print ER profiles')
-parser_b.add_argument('inputER', type=str, help='input structure(s)')
-parser_c = subparser.add_parser('leaderrank', help='print LR profiles')
+parser_c = subparser.add_parser('profiles', help='print LR profiles')
 parser_c.add_argument('inputLR', type=str, help='input structure(s)')
 
 parser.add_argument('-v', '--verbose', default=False, action='store_true', help='verbose output')
 parser.add_argument('-a', '--atomium', default=False, action='store_true', help='atomium parser')
 parser.add_argument('--csv', default=False, action='store_true', help='output csv for easy parsing')
-parser.add_argument('-nc', '--no-cache', action='store_false', default=True, help='DON\'T write numba machine code to cache')
 
 parser.add_argument('-h', '--help', action='store_true', help='that\'s better')
 args = parser.parse_args()
@@ -144,8 +153,12 @@ if hasattr(args,'input1'):
     input1 = parse_paths(args.input1)
     input2 = parse_paths(args.input2)
 
-# elif hasattr(args,'inputER'):
-    
+elif hasattr(args,'inputER'):
+    inputER = parse_paths(args.inputER)
+
+elif hasattr(args,'inputLR'):
+    inputLR = parse_paths(args.inputLR)
+
 else:
     if args.csv:
         print('chain_1,length_1,chain_2,length_2,ali_length,gaps,gaps_percent,rmsd,t_sauze,gdt_ts,gdt_similarity,zer_score,tm_score1,tm_score2,identity,similarity\naligned chain sequence 1\nindication of < 5 Å\naligned chain sequence 2')
@@ -343,13 +356,98 @@ def eigenrank(atom_coordinates):
         princo = princo * np.sign(eigenvectors[0,:])
         return scale2(princo[:,ind[0]])
 
-    return pca(leaderranks)
+    return pca(leaderranks),scale2(leaderranks)
 
 
 
+#######################################################################
+# STRUCTURE (coordinates, EigenRank profile, ID)
+
+class structure:
+    def __init__(self, file):
+        self.file = file
+        self.sccs = ' '
+        self.atoms = []
+        self.id = os.path.basename(file).split('.')[0]
+        if use_atomium:
+            self.atomium_parse(file)
+        else:
+            self.parse_coords(file)
+
+    def atomium_parse(self,file):
+        try:
+            struc = atomium.open(str(file))
+        except FileNotFoundError:
+            struc = atomium.fetch(str(file))
+
+        self.coord_dict = {}
+        for chain in struc.model.chains():
+            coords = []
+            for res in chain:
+                for atom in res.atoms():
+                    if (atom.name == 'CA' and atom.het.code != 'X'):
+                        coords.append(atom.location)
+                        self.atoms.append({'res_id':int(res.id.split('.')[-1]), 'res':toggle_code(res.code, '3to1'), 'atom_id':atom.id, 'coords':atom.location, 'chain':chain.id})
+            self.coord_dict[chain.internal_id] = np.asarray(coords)
+
+        self.er_dict = {}
+        self.lr_dict = {}
+        for chain_id, coords in self.coord_dict.items():
+            self.er_dict[chain_id], self.lr_dict[chain_id] = eigenrank(coords)
+            break # for only first chain is selected below
+
+        # picking first chain
+        first_chain = sorted(self.coord_dict.keys())[0]
+        self.coordinates = self.coord_dict[first_chain]
+        self.l = self.coordinates.shape[0]
+        if self.l < 10:
+            print('{} is too short for a sensible EigenRank ({})'.format(self.id, self.l))
+        else:
+            self.er = self.er_dict[first_chain]
+            self.lr = self.lr_dict[first_chain]
+
+    def parse_coords(self,file):
+        atom_id = -20
+        res_id = -20
+        # no HIS tags etc....or?
+        # STUPID PDB
+        if '.gz' in str(file):
+            foe = gzip.open(file,'rt')
+        else:
+            foe = open(file, 'r')
+        for line in foe:
+            if (line.startswith('ATOM') and
+                    # res_id < int(line[22:26]) and   # in case there's misbehaviour with faulty 
+                    # atom_id < int(line[5:11]) and   # .pdb files --> allows only "right" order
+                    line[13:15] == 'CA' and
+                    line[16] in ['A',' ']):           # take only first alternative
+                atom_id = int(line[5:11])
+                x,y,z = float(line[30:38]),float(line[38:46]),float(line[46:54])
+                res = line[17:20]
+                res_id = int(line[22:26])
+                self.atoms.append({'res_id':res_id, 'res':res, 'atom_id':atom_id, 'coords':[x,y,z]})
+            elif line.startswith('REMARK  99 ASTRAL SCOPe-sccs:'):  # \
+                self.sccs = line[30:].rstrip()                      # | if at all you're interested
+            elif line.startswith('REMARK  99 ASTRAL SCOPe-sid:'):   # | to know SCOPe's IDs
+                self.sid = line[29:].rstrip()                       # /
+            # stop parsing after first chain 
+            # use --atomium and read structure.atoms for all chains
+            elif (line.startswith('ENDMDL') or line.startswith('TER')):
+                break
+        self.coordinates = np.asarray([a['coords'] for a in self.atoms])
+        self.l = self.coordinates.shape[0]
+        if self.l < 10:
+            print('{} is too short for a sensible EigenRank ({})'.format(self.id, self.l))
+        else:
+            self.er,self.lr = eigenrank(self.coordinates)
+
+
+
+#######################################################################
 ### ALIGNMENT CLASS ###
+
 ### numba part:
-@jit(nopython=True, cache=args.no_cache)
+@jit(nopython=True)
 def nlocalalign(ab,gap,factor,limit):
     m,n = ab.shape
     f = np.zeros((m+1,n+1))
@@ -466,87 +564,24 @@ class Alignment:
         self.t_sauze = self.tm*self.score**2*self.traceback_len**2*self.gdt_ts**2*self.query.l**-0.5*self.target.l**-0.5
 
 
+# PRINTING ER/LR AS CSV
 
-#######################################################################
-# STRUCTURE (coordinates, EigenRank profile, ID)
+if 'inputLR' in globals():
+    if len(inputLR) >= 16:
+        n_cores = mp.cpu_count()
+        with mp.Pool(n_cores) as pool:
+            structuresLR = pool.map(structure, inputLR)
+    else:
+        structuresLR = [structure(s1) for s1 in inputLR]
+    for s in structuresLR:
+        with open('{}.profile'.format(s.id), 'w') as f:
+            f.write('# {}\n'.format(s.id))
+            f.write('# res_id,res,x,y,z,er,lr5,l6,l7,l8,l9,lr10,lr11,lr12,lr13,lr14\n')
+            for atoms, er, lr in zip(s.atoms, s.er, [k for k in s.lr]):
+                f.write('{:05d},{},{:.3f},{:.3f},{:.3f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}\n'.format(atoms['res_id'], atoms['res'].lower(), *atoms['coords'], er, *lr))
+    sys.exit()
 
-class structure:
-    def __init__(self, file):
-        self.file = file
-        self.sccs = ' '
-        self.atoms = []
-        self.id = os.path.basename(file).split('.')[0]
-        if use_atomium:
-            self.atomium_parse(file)
-        else:
-            self.parse_coords(file)
-
-    def atomium_parse(self,file):
-        try:
-            struc = atomium.open(str(file))
-        except FileNotFoundError:
-            struc = atomium.fetch(str(file))
-
-        self.coord_dict = {}
-        for chain in struc.model.chains():
-            coords = []
-            for res in chain:
-                for atom in res.atoms():
-                    if (atom.name == 'CA' and atom.het.code != 'X'):
-                        coords.append(atom.location)
-                        self.atoms.append({'res_id':res.id, 'res':toggle_code(res.code, '3to1'), 'atom_id':atom.id, 'coords':atom.location, 'chain':chain.id})
-            self.coord_dict[chain.internal_id] = np.asarray(coords)
-
-        self.er_dict = {}
-        for chain_id, coords in self.coord_dict.items():
-            self.er_dict[chain_id] = eigenrank(coords)
-
-        # picking first chain
-        first_chain = sorted(self.coord_dict.keys())[0]
-        self.coordinates = self.coord_dict[first_chain]
-        self.l = self.coordinates.shape[0]
-        if self.l < 10:
-            print('{} is too short for a sensible EigenRank ({})'.format(self.id, self.l))
-        else:
-            self.er = self.er_dict[first_chain]
-
-    def parse_coords(self,file):
-        atom_id = -20
-        res_id = -20
-        # no HIS tags etc....or?
-        # STUPID PDB
-        if '.gz' in str(file):
-            foe = gzip.open(file,'rt')
-        else:
-            foe = open(file, 'r')
-        for line in foe:
-            if (line.startswith('ATOM') and
-                    # res_id < int(line[22:26]) and   # in case there's misbehaviour with faulty 
-                    # atom_id < int(line[5:11]) and   # .pdb files --> allows only "right" order
-                    line[13:15] == 'CA' and
-                    line[16] in ['A',' ']):           # take only first alternative
-                atom_id = int(line[5:11])
-                x,y,z = float(line[30:38]),float(line[38:46]),float(line[46:54])
-                res = line[17:20]
-                res_id = int(line[22:26])
-                self.atoms.append({'res_id':res_id, 'res':res, 'atom_id':atom_id, 'coords':[x,y,z]})
-            elif line.startswith('REMARK  99 ASTRAL SCOPe-sccs:'):  # \
-                self.sccs = line[30:].rstrip()                      # | if at all you're interested
-            elif line.startswith('REMARK  99 ASTRAL SCOPe-sid:'):   # | to know SCOPe's IDs
-                self.sid = line[29:].rstrip()                       # /
-            # stop parsing after first chain 
-            # use --atomium and read structure.atoms for all chains
-            elif (line.startswith('ENDMDL') or line.startswith('TER')):
-                break
-        self.coordinates = np.asarray([a['coords'] for a in self.atoms])
-        self.l = self.coordinates.shape[0]
-        if self.l < 10:
-            print('{} is too short for a sensible EigenRank ({})'.format(self.id, self.l))
-        else:
-            self.er = eigenrank(self.coordinates)
-
-
-### OUTPUT FILE
+### OUTPUT FILE ALIGNMENTS
 if args.output != False:
     output_file = open(args.output, 'w')
 ### INITIATING STRUCTURE OBJECTS
@@ -572,12 +607,12 @@ if args.verbose:
         print('\n'.join(logo))
         print('\n# EigenRank calculation time: {0:.3f}s + {1:.3f}s = {2:.3f}s'.format(t5-t4, time()-t5, time()-t4))
         print('# input1: {0} structures, input2: {1} structures'.format(nstr1,nstr2))
-        print('# starting pairwise alignment (gap cost = {0}, limit = {1})\n'.format(args.gap_cost, args.limit))
+        print('# pairwise alignment (gap cost = {0}, limit = {1})\n'.format(args.gap_cost, args.limit))
     else:
         output_file.write('\n'.join(logo))
         output_file.write('\n\n# EigenRank calculation time: {0:.3f}s + {1:.3f}s = {2:.3f}s\n'.format(t5-t4, time()-t5, time()-t4))
         output_file.write('# input1: {0} structures, input2: {1} structures\n'.format(nstr1,nstr2))
-        output_file.write('# starting pairwise alignment (gap cost = {0}, limit = {1})\n'.format(args.gap_cost, args.limit))
+        output_file.write('# pairwise alignment (gap cost = {0}, limit = {1})\n'.format(args.gap_cost, args.limit))
         output_file.flush()
 
 # with open('structures.pkl', 'wb') as p:   # ⎫
@@ -587,6 +622,8 @@ if args.verbose:
 # with open('structures.pkl', 'rb') as p:   # ⎪ 
     # query_structures=pickle.load(p)       # ⎪ contain data of all atoms
     # target_structures=pickle.load(p)      # ⎭ incl. coordinates and ER profile 
+
+
 
 
 ### OUTPUT GENERATOR
