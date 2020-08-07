@@ -40,10 +40,10 @@
 #               ║  │   --limit        limit parameter (default 0.7)                      │ ║
 #               ║  └─────────────────────────────────────────────────────────────────────┘ ║
 #               ║  ┌─────────────────────────────────────────────────┐                     ║
-#               ╟──┤  PROFILES mode                                  │                     ║
-#               ║  │ ╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍                                 │                     ║
+#               ╟──┤  PROFILE mode                                   │                     ║
+#               ║  │ ╍╍╍╍╍╍╍╍╍╍╍╍╍╍                                  │                     ║
 #               ║  │                                                 │                     ║
-#               ║  │  python sauzeror.py [...] profiles input        │                     ║
+#               ║  │  python sauzeror.py [...] profile input         │                     ║
 #               ║  │                                                 │                     ║
 #               ║  │  create file with atom coordinates, residue     │                     ║
 #               ╟──┤  and ER/LR profiles and save it as {id}.profile │                     ║
@@ -99,7 +99,7 @@ parser_a.add_argument('--limit', type=float, default=0.7, help='limit parameter 
 parser_a.add_argument('-o', '--output', default=False, help='output to file instead of stdout')
 
 # ER/LR output
-parser_c = subparser.add_parser('profiles', help='print LR profiles')
+parser_c = subparser.add_parser('profile', help='save ER/LR profiles')
 parser_c.add_argument('inputLR', type=str, help='input structure(s)')
 
 parser.add_argument('-v', '--verbose', default=False, action='store_true', help='verbose output')

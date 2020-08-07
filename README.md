@@ -18,7 +18,9 @@ python sauzeror.py -v align domains.txt ../SCOPe/ -o results.txt
 
 ## Options
 
-Run sauzeror.py without arguments to view a help message.
+Run sauzeror.py without arguments to view a help message.  
+**align** mode aligns two sets of protein structures.  
+**profile** mode saves EigenRank and LeaderRank profiles along with atom coordinates and residues to a `.profile` file.
 
 ## Tips
 
