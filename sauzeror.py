@@ -86,9 +86,11 @@ parser_a.add_argument('--gap-cost', type=float, default=0.8, help='gap cost')
 parser_a.add_argument('--limit', type=float, default=0.7, help='limit parameter for Smith-Waterman-algorithm')
 parser_a.add_argument('-o', '--output', default=False, help='output to file instead of stdout')
 
-# future feature
-parser_c = subparser.add_parser('classify', help='classify a set of proteins with SCOPe')
-parser_c.add_argument('input', type=str, help='input structure')
+# ER/LR output
+parser_b = subparser.add_parser('eigenrank', help='print ER profiles')
+parser_b.add_argument('inputER', type=str, help='input structure(s)')
+parser_c = subparser.add_parser('leaderrank', help='print LR profiles')
+parser_c.add_argument('inputLR', type=str, help='input structure(s)')
 
 parser.add_argument('-v', '--verbose', default=False, action='store_true', help='verbose output')
 parser.add_argument('-a', '--atomium', default=False, action='store_true', help='atomium parser')
@@ -109,34 +111,44 @@ elif (not has_atomium and args.atomium):
 else:
     use_atomium = False
 
-if hasattr(args,'input'):
-    print('classification of ', args.input)
-    sys.exit()
-elif hasattr(args,'input1'):
-    inputs = dict()
-    for i,inargs in enumerate([args.input1, args.input2]):
-        if os.path.isdir(inargs):
-            inputs['input{}'.format(i)] = list(Path(inargs).rglob('*.pdb'))
-            inputs['input{}'.format(i)].extend(Path(inargs).rglob('*.ent'))
-            inputs['input{}'.format(i)].extend(Path(inargs).rglob('*.cif'))
-            inputs['input{}'.format(i)].extend(Path(inargs).rglob('*.atm'))
-            inputs['input{}'.format(i)].extend(Path(inargs).rglob('*.gz'))
-        elif os.path.isfile(inargs):
-            inputs['input{}'.format(i)] = []
-            if 'gz' in str(inargs):
-                inputs['input{}'.format(i)] = [os.path.abspath(inargs)]
-            else:
-                for line in open(inargs,'r'):
-                    line=line.rstrip()
-                    if not line.startswith('#'):
-                        if not os.path.isfile(line):
-                            inputs['input{}'.format(i)] = [os.path.abspath(inargs)]
-                            break
+# decides whether file, dir or list of files
+def parse_paths(inargs):
+    if os.path.isdir(inargs):
+        inputs = list(Path(inargs).rglob('*.pdb'))
+        inputs.extend(Path(inargs).rglob('*.ent'))
+        inputs.extend(Path(inargs).rglob('*.cif'))
+        inputs.extend(Path(inargs).rglob('*.atm'))
+        inputs.extend(Path(inargs).rglob('*.gz'))
+    elif os.path.isfile(inargs):
+        inputs = []
+        if 'gz' in str(inargs):
+            inputs = [os.path.abspath(inargs)]
+        else:
+            for line in open(inargs,'r'):
+                line=line.rstrip()
+                if not line.startswith('#'):
+                    if not os.path.isfile(line):
+                        inputs = [os.path.abspath(inargs)]
+                        break
+                    else:
+                        if '.' in line:
+                            inputs.append(os.path.abspath(line.rstrip()))
                         else:
-                            inputs['input{}'.format(i)].append(os.path.abspath(line.rstrip()))
+                            inputs.append(line.rstrip())
+    else:
+        inputs = [inargs.strip()]
+    return inputs
+
+
+if hasattr(args,'input1'):
+    input1 = parse_paths(args.input1)
+    input2 = parse_paths(args.input2)
+
+# elif hasattr(args,'inputER'):
+    
 else:
     if args.csv:
-        print('chain_1,length_1,sccs_1,chain_2,length_2,sccs_2,ali_length,gaps,gaps_percent,rmsd,t_sauze,gdt_ts,gdt_similarity,zer_score,tm_score1,tm_score2,identity,similarity\naligned chain sequence 1\nindication of < 5 Å\naligned chain sequence 2')
+        print('chain_1,length_1,chain_2,length_2,ali_length,gaps,gaps_percent,rmsd,t_sauze,gdt_ts,gdt_similarity,zer_score,tm_score1,tm_score2,identity,similarity\naligned chain sequence 1\nindication of < 5 Å\naligned chain sequence 2')
         sys.exit()
     if not args.help:
         print('\n'.join(helptext))
@@ -539,9 +551,6 @@ if args.output != False:
     output_file = open(args.output, 'w')
 ### INITIATING STRUCTURE OBJECTS
 t4 = time()
-# not too elegant... but easier than calling the dictionary in every line
-input1 = inputs['input0']
-input2 = inputs['input1']
 # automatically fire up all processors which can take up to a second
 if len(input1)+len(input2) >= 20:
     n_cores = mp.cpu_count()
@@ -608,10 +617,8 @@ def sauzer(q,t,queue=0,gap=args.gap_cost,limit=args.limit):
     else:
         values = ['"{}"'.format(str(q.file)),
             str(q.l),
-            q.sccs,
             '"{}"'.format(str(t.file)),
             str(t.l),
-            t.sccs,
             '{:d}'.format(a.traceback_len),
             '{:d}'.format(a.nrgaps),
             '{:.2}'.format(a.nrgaps/a.traceback_len),
